@@ -1,0 +1,150 @@
+import os
+import json
+import re
+import subprocess
+import sys
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PROFILE_PATH = os.path.join(BASE_DIR, "knowledge_base", "candidate_profile.json")
+
+DEFAULT_PROFILE = {
+    "full_name": "Rajiv (Raj) Parikh",
+    "preferred_name": "Raj Parikh",
+    "address": "Carlingford, NSW 2118",
+    "phone": "0433 463 121",
+    "email": "raj.parikh@hotmail.com",
+    "citizenship": "Australian Citizen",
+    "linkedin": "https://www.linkedin.com/in/rajivparikh",
+    "portfolio_url": "https://itsmtracker.crashcoursetech.com",
+    "total_years_experience": "25+",
+    "target_title": "Head of Infrastructure & Security / Technology Leader",
+    "core_credentials": "CISSP | CISM | A|CISO | ITIL | PRINCE2 | CCNP",
+    "executive_summary_baseline": "Strategic and hands-on Technology Leader with over 25 years of experience directing infrastructure engineering, cloud operations, and cybersecurity governance within high-growth financial services (Commonwealth Bank of Australia) and enterprise environments. Proven track record of partnering with CTOs and executive stakeholders to define technology roadmaps, manage capital budgets, and scale cloud environments (AWS/Azure) utilizing Infrastructure as Code (Terraform) and DevOps best practices. Fully certified security executive (CISSP, CISM) with expertise maturing cybersecurity postures, securing payment-adjacent systems, and building high-performing technical teams."
+}
+
+def get_candidate_profile():
+    if os.path.exists(PROFILE_PATH):
+        try:
+            with open(PROFILE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Ensure all keys exist
+                for k, v in DEFAULT_PROFILE.items():
+                    if k not in data:
+                        data[k] = v
+                return data
+        except Exception:
+            pass
+    return DEFAULT_PROFILE.copy()
+
+def save_candidate_profile(data):
+    current = get_candidate_profile()
+    for k, v in data.items():
+        if k in DEFAULT_PROFILE:
+            current[k] = str(v).strip()
+            
+    os.makedirs(os.path.dirname(PROFILE_PATH), exist_ok=True)
+    with open(PROFILE_PATH, "w", encoding="utf-8") as f:
+        json.dump(current, f, indent=2, ensure_ascii=False)
+        
+    # Also update formatting_guide.md and relevant KB files
+    update_kb_source_files(current)
+    return current
+
+def update_kb_source_files(profile):
+    formatting_guide = os.path.join(BASE_DIR, "knowledge_base", "formatting_guide.md")
+    if os.path.exists(formatting_guide):
+        try:
+            with open(formatting_guide, "r", encoding="utf-8") as f:
+                content = f.read()
+            # Update contact info example
+            new_contact = f"{profile.get('address', '')} | {profile.get('phone', '')} | {profile.get('email', '')} | {profile.get('citizenship', '')}"
+            content = re.sub(
+                r'Contact:.*?(?=\| LinkedIn|\n|\))',
+                f"Contact: {new_contact} ",
+                content
+            )
+            with open(formatting_guide, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception as e:
+            print("Error updating formatting_guide:", e)
+
+def apply_profile_to_active_docs(profile=None):
+    if profile is None:
+        profile = get_candidate_profile()
+
+    new_address = profile.get("address", "")
+    new_phone = profile.get("phone", "")
+    new_email = profile.get("email", "")
+    new_years = profile.get("total_years_experience", "25+")
+    new_contact_line = f"{new_address} | {new_phone} | {new_email} | {profile.get('citizenship', 'Australian Citizen')}"
+
+    # 1. Update tailored_cover_letter.md
+    cl_path = os.path.join(BASE_DIR, "output", "tailored_cover_letter.md")
+    if os.path.exists(cl_path):
+        try:
+            with open(cl_path, "r", encoding="utf-8") as f:
+                cl_text = f.read()
+            # Replace address / contact line (typically line 2 or 3)
+            cl_lines = cl_text.splitlines()
+            for i in range(min(5, len(cl_lines))):
+                if any(x in cl_lines[i] for x in ["0433", "@", "NSW", "Citizen", "Carlingford"]):
+                    cl_lines[i] = new_contact_line
+                    break
+            updated_cl = "\n".join(cl_lines)
+            
+            # Replace 20+ years or 20 years with 25+ years
+            updated_cl = re.sub(r'20\+?\s*years', f"{new_years} years", updated_cl, flags=re.IGNORECASE)
+            # Clean any triple quote remnants
+            updated_cl = re.sub(r'^"""\s*', '', updated_cl)
+            updated_cl = re.sub(r'\s*"""$', '', updated_cl)
+            
+            with open(cl_path, "w", encoding="utf-8") as f:
+                f.write(updated_cl)
+        except Exception as e:
+            print("Error updating tailored_cover_letter.md:", e)
+
+    # 2. Update tailored_resume.md
+    resume_path = os.path.join(BASE_DIR, "output", "tailored_resume.md")
+    if os.path.exists(resume_path):
+        try:
+            with open(resume_path, "r", encoding="utf-8") as f:
+                r_text = f.read()
+            # Replace 20+ years with 25+ years
+            r_text = re.sub(r'20\+?\s*years', f"{new_years} years", r_text, flags=re.IGNORECASE)
+            with open(resume_path, "w", encoding="utf-8") as f:
+                f.write(r_text)
+        except Exception as e:
+            print("Error updating tailored_resume.md:", e)
+
+    # 3. Update compliance_report.md
+    report_path = os.path.join(BASE_DIR, "output", "compliance_report.md")
+    if os.path.exists(report_path):
+        try:
+            with open(report_path, "r", encoding="utf-8") as f:
+                rep_text = f.read()
+            rep_text = re.sub(r'20\+?\s*years', f"{new_years} years", rep_text, flags=re.IGNORECASE)
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(rep_text)
+        except Exception as e:
+            print("Error updating compliance_report.md:", e)
+
+    # 4. Trigger re-compilation of Word docs
+    venv_python = os.path.join(BASE_DIR, ".venv", "Scripts", "python.exe")
+    if not os.path.exists(venv_python):
+        venv_python = sys.executable
+        
+    script_path = os.path.join(BASE_DIR, "scripts", "compile_docs.py")
+    try:
+        proc = subprocess.run([venv_python, script_path], cwd=BASE_DIR, capture_output=True, text=True, timeout=60)
+        return {
+            "success": True,
+            "profile": profile,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "profile": profile
+        }

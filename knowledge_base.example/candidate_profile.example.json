@@ -1,0 +1,16 @@
+{
+  "full_name": "Jane Doe",
+  "target_title": "Senior Technology Leader / Enterprise Infrastructure Manager",
+  "address": "Sydney, NSW, Australia",
+  "phone": "+61 400 000 000",
+  "email": "jane.doe@example.com",
+  "citizenship": "Australian Citizen",
+  "linkedin": "https://www.linkedin.com/in/example",
+  "total_years_experience": "20+",
+  "certifications": [
+    "CISSP",
+    "CISM",
+    "CCNA",
+    "ITIL Foundation"
+  ]
+}
