@@ -135,7 +135,7 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 # 3. Build and deploy directly from the source directory
 gcloud run deploy resume-lab-ai-studio \
   --source . \
-  --region australia-southeast1 \
+  --region us-central1 \
   --allow-unauthenticated \
   --port 8080
 ```

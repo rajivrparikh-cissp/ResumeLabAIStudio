@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://resume-lab-ai-studio-135378541186.australia-southeast1.run.app"><img src="https://img.shields.io/badge/Live%20Demo-Google%20Cloud%20Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white" alt="Live Demo on GCP"></a>
+  <a href="https://resume-lab-ai-studio-135378541186.us-central1.run.app"><img src="https://img.shields.io/badge/Live%20Demo-Google%20Cloud%20Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white" alt="Live Demo on GCP"></a>
   <img src="https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready">
   <img src="https://img.shields.io/badge/Multi--Cloud-AWS%20%7C%20Azure%20%7C%20GCP-FF9900?style=for-the-badge&logo=amazonwebservices&logoColor=white" alt="Multi-Cloud Support">
@@ -198,11 +198,11 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com
 # 1-Command Deployment
 gcloud run deploy resume-lab-ai-studio \
   --source . \
-  --region australia-southeast1 \
+  --region us-central1 \
   --allow-unauthenticated \
   --port 8080
 ```
-*Live Reference: [https://resume-lab-ai-studio-135378541186.australia-southeast1.run.app](https://resume-lab-ai-studio-135378541186.australia-southeast1.run.app)*
+*Live Reference: [https://resume-lab-ai-studio-135378541186.us-central1.run.app](https://resume-lab-ai-studio-135378541186.us-central1.run.app)*
 
 ---
 
