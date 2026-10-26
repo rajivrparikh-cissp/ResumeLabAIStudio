@@ -5,7 +5,10 @@ import subprocess
 import sys
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-PROFILE_PATH = os.path.join(BASE_DIR, "knowledge_base", "candidate_profile.json")
+from storage_config import get_kb_dir, get_output_dir
+
+def get_profile_path():
+    return os.path.join(get_kb_dir(), "candidate_profile.json")
 
 DEFAULT_PROFILE = {
     "full_name": "Senior Technology Leader",
@@ -23,9 +26,10 @@ DEFAULT_PROFILE = {
 }
 
 def get_candidate_profile():
-    if os.path.exists(PROFILE_PATH):
+    profile_path = get_profile_path()
+    if os.path.exists(profile_path):
         try:
-            with open(PROFILE_PATH, "r", encoding="utf-8") as f:
+            with open(profile_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 # Ensure all keys exist
                 for k, v in DEFAULT_PROFILE.items():
@@ -42,8 +46,9 @@ def save_candidate_profile(data):
         if k in DEFAULT_PROFILE:
             current[k] = str(v).strip()
             
-    os.makedirs(os.path.dirname(PROFILE_PATH), exist_ok=True)
-    with open(PROFILE_PATH, "w", encoding="utf-8") as f:
+    profile_path = get_profile_path()
+    os.makedirs(os.path.dirname(profile_path), exist_ok=True)
+    with open(profile_path, "w", encoding="utf-8") as f:
         json.dump(current, f, indent=2, ensure_ascii=False)
         
     # Also update formatting_guide.md and relevant KB files
@@ -51,7 +56,7 @@ def save_candidate_profile(data):
     return current
 
 def update_kb_source_files(profile):
-    formatting_guide = os.path.join(BASE_DIR, "knowledge_base", "formatting_guide.md")
+    formatting_guide = os.path.join(get_kb_dir(), "formatting_guide.md")
     if os.path.exists(formatting_guide):
         try:
             with open(formatting_guide, "r", encoding="utf-8") as f:
@@ -78,8 +83,10 @@ def apply_profile_to_active_docs(profile=None):
     new_years = profile.get("total_years_experience", "25+")
     new_contact_line = f"{new_address} | {new_phone} | {new_email} | {profile.get('citizenship', 'Australian Citizen')}"
 
+    output_dir = get_output_dir()
+
     # 1. Update tailored_cover_letter.md
-    cl_path = os.path.join(BASE_DIR, "output", "tailored_cover_letter.md")
+    cl_path = os.path.join(output_dir, "tailored_cover_letter.md")
     if os.path.exists(cl_path):
         try:
             with open(cl_path, "r", encoding="utf-8") as f:
@@ -104,7 +111,7 @@ def apply_profile_to_active_docs(profile=None):
             print("Error updating tailored_cover_letter.md:", e)
 
     # 2. Update tailored_resume.md
-    resume_path = os.path.join(BASE_DIR, "output", "tailored_resume.md")
+    resume_path = os.path.join(output_dir, "tailored_resume.md")
     if os.path.exists(resume_path):
         try:
             with open(resume_path, "r", encoding="utf-8") as f:
@@ -117,7 +124,7 @@ def apply_profile_to_active_docs(profile=None):
             print("Error updating tailored_resume.md:", e)
 
     # 3. Update compliance_report.md
-    report_path = os.path.join(BASE_DIR, "output", "compliance_report.md")
+    report_path = os.path.join(output_dir, "compliance_report.md")
     if os.path.exists(report_path):
         try:
             with open(report_path, "r", encoding="utf-8") as f:

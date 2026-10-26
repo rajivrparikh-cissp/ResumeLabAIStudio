@@ -48,11 +48,11 @@ def get_ollama_status(ollama_url=None):
             "default_model": "llama3.2"
         }
 
+from storage_config import get_kb_dir, get_apps_dir, get_output_dir
+
 def load_kb_summary(max_chars=3500):
     """Loads and formats a concise summary of the candidate's verified knowledge base."""
-    kb_dir = os.path.join(BASE_DIR, "knowledge_base")
-    if not os.path.exists(kb_dir):
-        kb_dir = os.path.join(BASE_DIR, "knowledge_base.example")
+    kb_dir = get_kb_dir()
     sections = []
     
     # Candidate Profile Truth (Address, Experience, Contact)
@@ -743,7 +743,7 @@ Rajiv (Raj) Parikh
         }
 
     # For resume:
-    my_app_dir = os.path.join(BASE_DIR, "my_applications")
+    my_app_dir = get_apps_dir()
     sample_apps = [
         "Kia Motors - IT Manager - Network & Security",
         "Westpac - Infrastructure Service Manager",

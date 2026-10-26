@@ -5,9 +5,13 @@ import shutil
 import datetime
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-MY_APPS_DIR = os.path.join(BASE_DIR, "my_applications")
+from storage_config import get_apps_dir, get_output_dir, get_target_jd_path
 
-ACTIVE_TARGET_FILE = os.path.join(BASE_DIR, "output", "active_target.json")
+def get_my_apps_dir():
+    return get_apps_dir()
+
+def get_active_target_file():
+    return os.path.join(get_output_dir(), "active_target.json")
 
 def sanitize_filename(name):
     if not name:
@@ -16,9 +20,10 @@ def sanitize_filename(name):
     return re.sub(r'\s+', " ", cleaned).strip()
 
 def get_active_target():
-    if os.path.exists(ACTIVE_TARGET_FILE):
+    target_file = get_active_target_file()
+    if os.path.exists(target_file):
         try:
-            with open(ACTIVE_TARGET_FILE, "r", encoding="utf-8") as f:
+            with open(target_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data.get("company") and data.get("title"):
                     return data
@@ -27,7 +32,8 @@ def get_active_target():
     return None
 
 def set_active_target(company, title):
-    os.makedirs(os.path.dirname(ACTIVE_TARGET_FILE), exist_ok=True)
+    target_file = get_active_target_file()
+    os.makedirs(os.path.dirname(target_file), exist_ok=True)
     clean_company = sanitize_filename(company) or "Target Company"
     clean_title = sanitize_filename(title) or "Target Role"
     data = {
@@ -36,7 +42,7 @@ def set_active_target(company, title):
         "folder_name": f"{clean_company} - {clean_title}",
         "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
-    with open(ACTIVE_TARGET_FILE, "w", encoding="utf-8") as f:
+    with open(target_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     return data
 
@@ -142,16 +148,17 @@ def detect_company_and_title(jd_text):
     }
 
 def list_applications():
-    os.makedirs(MY_APPS_DIR, exist_ok=True)
+    my_apps = get_apps_dir()
+    os.makedirs(my_apps, exist_ok=True)
     results = []
     
     try:
-        entries = os.listdir(MY_APPS_DIR)
+        entries = os.listdir(my_apps)
     except Exception:
         return []
 
     for entry in entries:
-        folder_path = os.path.join(MY_APPS_DIR, entry)
+        folder_path = os.path.join(my_apps, entry)
         if not os.path.isdir(folder_path):
             continue
             
@@ -203,7 +210,8 @@ def list_applications():
     return results
 
 def save_application(company, title, custom_folder=None):
-    os.makedirs(MY_APPS_DIR, exist_ok=True)
+    my_apps = get_apps_dir()
+    os.makedirs(my_apps, exist_ok=True)
     
     if custom_folder:
         folder_name = sanitize_filename(custom_folder)
@@ -212,16 +220,19 @@ def save_application(company, title, custom_folder=None):
         safe_ti = sanitize_filename(title or "Role")
         folder_name = f"{safe_co} - {safe_ti}"
 
-    dest_dir = os.path.join(MY_APPS_DIR, folder_name)
+    output_dir = get_output_dir()
+    target_jd_path = get_target_jd_path()
+
+    dest_dir = os.path.join(my_apps, folder_name)
     os.makedirs(dest_dir, exist_ok=True)
 
     files_map = [
-        (os.path.join(BASE_DIR, "target_jd.md"), "target_jd.md"),
-        (os.path.join(BASE_DIR, "output", "tailored_resume.md"), "tailored_resume.md"),
-        (os.path.join(BASE_DIR, "output", "tailored_cover_letter.md"), "tailored_cover_letter.md"),
-        (os.path.join(BASE_DIR, "output", "compliance_report.md"), "compliance_report.md"),
-        (os.path.join(BASE_DIR, "output", "tailored_resume.docx"), "tailored_resume.docx"),
-        (os.path.join(BASE_DIR, "output", "tailored_cover_letter.docx"), "tailored_cover_letter.docx")
+        (target_jd_path, "target_jd.md"),
+        (os.path.join(output_dir, "tailored_resume.md"), "tailored_resume.md"),
+        (os.path.join(output_dir, "tailored_cover_letter.md"), "tailored_cover_letter.md"),
+        (os.path.join(output_dir, "compliance_report.md"), "compliance_report.md"),
+        (os.path.join(output_dir, "tailored_resume.docx"), "tailored_resume.docx"),
+        (os.path.join(output_dir, "tailored_cover_letter.docx"), "tailored_cover_letter.docx")
     ]
 
     saved_files = []
@@ -250,11 +261,12 @@ def save_application(company, title, custom_folder=None):
     }
 
 def load_application_files(folder_name):
-    folder_path = os.path.join(MY_APPS_DIR, folder_name)
+    my_apps = get_apps_dir()
+    folder_path = os.path.join(my_apps, folder_name)
     if not os.path.exists(folder_path):
         raise FileNotFoundError(f"Application folder '{folder_name}' not found.")
 
-    output_dir = os.path.join(BASE_DIR, "output")
+    output_dir = get_output_dir()
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Restore JD
@@ -278,7 +290,8 @@ def load_application_files(folder_name):
             pass
 
     if jd_text:
-        with open(os.path.join(BASE_DIR, "target_jd.md"), "w", encoding="utf-8") as f:
+        target_jd_path = get_target_jd_path()
+        with open(target_jd_path, "w", encoding="utf-8") as f:
             f.write(jd_text)
 
     # 2. Restore Markdown outputs

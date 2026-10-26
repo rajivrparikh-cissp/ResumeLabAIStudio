@@ -17,6 +17,7 @@ my_applications/
 # 3. Active Tailored Documents & Target State (Local Only)
 output/
 target_jd.md
+user_storage_config.json
 ai_strategy_and_delivery.md
 cover_letter_template.md
 resume_template.md

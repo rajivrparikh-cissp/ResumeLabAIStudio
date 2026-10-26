@@ -98,6 +98,17 @@
       </div>
     </div>
 
+    <!-- Local Storage Setup Badge -->
+    <button onclick="openStorageModal()" id="storage-header-badge" class="hidden md:flex items-center space-x-2 bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-teal-500/50 transition cursor-pointer" title="Configure Local Storage Paths for Knowledge Base, Templates, Outputs, and Archives">
+      <span class="text-xs">📁</span>
+      <span class="text-xs text-slate-400">Storage:</span>
+      <span id="header-storage-status" class="text-xs font-semibold text-teal-400 flex items-center space-x-1">
+        <span class="h-2 w-2 rounded-full bg-teal-500 inline-block"></span>
+        <span>Local (Default)</span>
+      </span>
+      <span class="text-[10px] text-teal-400 font-mono ml-1">⚙️</span>
+    </button>
+
     <!-- AI Engine & Model Setup Badge -->
     <button onclick="openAiSetupModal()" id="llama-header-badge" class="hidden md:flex items-center space-x-2 bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-indigo-500/50 transition cursor-pointer" title="Configure AI Model: Local LLM or Bring Your Own API Key">
       <span class="text-xs" id="header-ai-icon">🦙</span>
@@ -206,6 +217,10 @@
       <button onclick="openAiSetupModal()" id="btn-nav-ai-setup" class="tab-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/40 flex items-center space-x-1.5 transition shadow-sm" title="Configure AI Model: Local LLM or Bring Your Own API Key">
         <span>🤖</span>
         <span id="nav-ai-engine-label">AI Engine Setup</span>
+      </button>
+      <button onclick="openStorageModal()" id="btn-nav-storage" class="tab-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-teal-300 hover:text-white bg-teal-600/20 hover:bg-teal-600/40 border border-teal-500/40 flex items-center space-x-1.5 transition shadow-sm" title="Configure Local Storage Paths for Knowledge Base, Templates, Outputs, and Archives">
+        <span>📁</span>
+        <span id="nav-storage-label">Local Storage</span>
       </button>
     </div>
 
@@ -3377,6 +3392,180 @@
       }
     }
 
+    // ==========================================
+    // Local Storage Directory Configuration
+    // ==========================================
+    let currentStoragePaths = {};
+
+    function openStorageModal() {
+      const modal = document.getElementById("storage-modal");
+      if (modal) {
+        modal.classList.remove("hidden");
+        loadStoragePaths();
+      }
+    }
+
+    function closeStorageModal() {
+      const modal = document.getElementById("storage-modal");
+      if (modal) modal.classList.add("hidden");
+    }
+
+    async function loadStoragePaths() {
+      try {
+        const res = await fetch("/api/storage-paths").then(r => r.json());
+        currentStoragePaths = res;
+        renderStorageModalUI(res);
+        updateHeaderStorageBadge(res);
+      } catch (err) {
+        console.error("Failed to load storage paths:", err);
+      }
+    }
+
+    function updateHeaderStorageBadge(data) {
+      const badge = document.getElementById("header-storage-status");
+      const navLabel = document.getElementById("nav-storage-label");
+      if (!badge) return;
+      if (data && data.has_custom_paths) {
+        badge.innerHTML = `<span class="h-2 w-2 rounded-full bg-emerald-400 inline-block"></span><span>Custom Drive</span>`;
+        if (navLabel) navLabel.innerText = "Custom Storage";
+      } else {
+        badge.innerHTML = `<span class="h-2 w-2 rounded-full bg-teal-400 inline-block"></span><span>Local (Default)</span>`;
+        if (navLabel) navLabel.innerText = "Local Storage";
+      }
+    }
+
+    function renderStorageModalUI(data) {
+      if (!data) return;
+
+      const keys = ["kb_dir", "templates_dir", "output_dir", "apps_dir"];
+      keys.forEach(k => {
+        const item = data[k];
+        if (!item) return;
+        const input = document.getElementById(`storage-input-${k}`);
+        if (input) input.value = item.path;
+
+        const badge = document.getElementById(`storage-badge-${k}`);
+        if (badge) {
+          const stats = item.stats || {};
+          let statusText = "";
+          let badgeClass = "";
+          if (stats.exists) {
+            const countLabel = k === "apps_dir" ? `${stats.dir_count} applications` : `${stats.file_count} files`;
+            const writeLabel = stats.writable ? "Writable" : "Read-only";
+            statusText = `✓ Active (${countLabel}, ${stats.size_kb} KB, ${writeLabel})`;
+            badgeClass = stats.writable ? "text-emerald-400 bg-emerald-950/60 border-emerald-500/30" : "text-amber-400 bg-amber-950/60 border-amber-500/30";
+          } else {
+            statusText = "✕ Folder does not exist yet (will create on save)";
+            badgeClass = "text-amber-400 bg-amber-950/60 border-amber-500/30";
+          }
+          badge.className = `text-[11px] px-2 py-0.5 rounded border ${badgeClass} inline-flex items-center font-mono`;
+          badge.innerText = statusText;
+        }
+
+        const customFlag = document.getElementById(`storage-flag-${k}`);
+        if (customFlag) {
+          if (item.is_custom) {
+            customFlag.innerText = "Custom Path";
+            customFlag.className = "text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-1.5 py-0.5 rounded";
+          } else {
+            customFlag.innerText = "Default";
+            customFlag.className = "text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded";
+          }
+        }
+      });
+
+      const modeBanner = document.getElementById("storage-mode-banner");
+      if (modeBanner) {
+        if (data.has_custom_paths) {
+          modeBanner.innerHTML = `<span class="text-emerald-400 font-bold">● Custom Local Storage Active:</span> Your documents and templates are saved to your custom folders on this computer.`;
+        } else {
+          modeBanner.innerHTML = `<span class="text-teal-400 font-bold">● Default Project Storage:</span> Using default project subdirectories inside this workspace.`;
+        }
+      }
+    }
+
+    async function saveStoragePaths() {
+      const btn = document.getElementById("btn-save-storage");
+      const orig = btn ? btn.innerHTML : "Save";
+      if (btn) { btn.innerHTML = "Saving..."; btn.disabled = true; }
+
+      const payload = {
+        kb_dir: document.getElementById("storage-input-kb_dir").value.trim(),
+        templates_dir: document.getElementById("storage-input-templates_dir").value.trim(),
+        output_dir: document.getElementById("storage-input-output_dir").value.trim(),
+        apps_dir: document.getElementById("storage-input-apps_dir").value.trim()
+      };
+
+      try {
+        const res = await fetch("/api/storage-paths", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }).then(r => r.json());
+
+        if (res.success) {
+          currentStoragePaths = res.paths;
+          renderStorageModalUI(res.paths);
+          updateHeaderStorageBadge(res.paths);
+          showToast("✅ Storage paths updated successfully!");
+          loadAllData();
+          loadApplications();
+        } else {
+          showToast(`⚠️ Failed to save paths: ${res.error}`, true);
+        }
+      } catch (err) {
+        showToast(`Save error: ${err.message}`, true);
+      } finally {
+        if (btn) { btn.innerHTML = orig; btn.disabled = false; }
+      }
+    }
+
+    async function resetStoragePaths() {
+      if (!confirm("Reset all storage paths to the default workspace directories?")) return;
+      try {
+        const res = await fetch("/api/storage-paths/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        }).then(r => r.json());
+
+        if (res.success) {
+          currentStoragePaths = res.paths;
+          renderStorageModalUI(res.paths);
+          updateHeaderStorageBadge(res.paths);
+          showToast("🔄 Storage paths reset to default workspace directories!");
+          loadAllData();
+          loadApplications();
+        } else {
+          showToast(`⚠️ Reset failed: ${res.error}`, true);
+        }
+      } catch (err) {
+        showToast(`Reset error: ${err.message}`, true);
+      }
+    }
+
+    async function initSampleStorage(component) {
+      const label = component === "kb" ? "Knowledge Base" : "Templates";
+      if (!confirm(`Copy starter sample files into your active ${label} folder? Existing files will not be overwritten.`)) return;
+      try {
+        const res = await fetch("/api/storage-paths/init-sample", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ component })
+        }).then(r => r.json());
+
+        if (res.success) {
+          const count = res.copied ? res.copied.length : 0;
+          showToast(`✅ Copied ${count} sample starter files to ${label}!`);
+          loadStoragePaths();
+          loadAllData();
+        } else {
+          showToast(`Init error: ${res.error}`, true);
+        }
+      } catch (err) {
+        showToast(`Error: ${err.message}`, true);
+      }
+    }
+
     // Initialize
     window.addEventListener("DOMContentLoaded", () => {
       loadAllData();
@@ -3385,6 +3574,7 @@
       detectCurrentApplication();
       checkLlmStatus();
       loadCandidateProfile();
+      loadStoragePaths();
       setInterval(checkLlmStatus, 30000);
     });
   </script>
@@ -3715,6 +3905,150 @@
 
         <div class="flex items-center justify-end pt-2 border-t border-slate-800">
           <button onclick="closeAiSetupModal()" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Local Storage Directory Configuration Modal -->
+  <div id="storage-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 overflow-y-auto">
+    <div class="glass-panel max-w-3xl w-full p-6 rounded-2xl border border-teal-500/40 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center space-x-3">
+          <div class="h-9 w-9 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-lg">
+            📁
+          </div>
+          <div>
+            <div class="text-base font-bold text-white flex items-center space-x-2">
+              <span>Local Storage Directory Configuration</span>
+              <span id="storage-mode-banner" class="text-xs font-normal"></span>
+            </div>
+            <div class="text-xs text-slate-400">Control exactly where your private career data, templates, and outputs live on your local machine.</div>
+          </div>
+        </div>
+        <button onclick="closeStorageModal()" class="text-slate-400 hover:text-white text-sm p-1">✕</button>
+      </div>
+
+      <!-- Privacy Assurance Banner -->
+      <div class="p-3 bg-teal-950/30 border border-teal-500/30 rounded-xl text-xs space-y-1">
+        <div class="flex items-center space-x-2 text-teal-300 font-semibold">
+          <span>🔒 100% On-Device Privacy Guaranteed</span>
+        </div>
+        <p class="text-slate-300 text-[11px] leading-relaxed">
+          Your directory choices are stored in a local machine file (<code class="text-teal-300 font-mono">user_storage_config.json</code>) that is strictly ignored by Git and Cloud Run. No private file paths or candidate data ever leave your personal computer.
+        </p>
+      </div>
+
+      <!-- Directory Inputs Grid -->
+      <div class="space-y-3.5 text-xs">
+
+        <!-- 1. Knowledge Base Directory -->
+        <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-sm">📚</span>
+              <span class="font-bold text-white">Knowledge Base Directory</span>
+              <span id="storage-flag-kb_dir"></span>
+            </div>
+            <button onclick="initSampleStorage('kb')" class="text-[11px] text-teal-400 hover:text-teal-300 hover:underline font-medium flex items-center space-x-1" title="Copy default sample templates into this folder if empty">
+              <span>📥 Init Sample KB Files</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Candidate profile truth, career employment history, experience matrices, and tone guide markdown files.
+          </p>
+          <div class="flex items-center space-x-2">
+            <input type="text" id="storage-input-kb_dir" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-teal-500" placeholder="e.g. C:\Users\YourName\Documents\MyResumeKB">
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <span id="storage-badge-kb_dir"></span>
+            <span class="text-[10px] text-slate-500">Env Override: RESUME_LAB_KB_DIR</span>
+          </div>
+        </div>
+
+        <!-- 2. Templates Directory -->
+        <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-sm">📝</span>
+              <span class="font-bold text-white">Resume & Cover Letter Templates</span>
+              <span id="storage-flag-templates_dir"></span>
+            </div>
+            <button onclick="initSampleStorage('template')" class="text-[11px] text-teal-400 hover:text-teal-300 hover:underline font-medium flex items-center space-x-1" title="Copy default Word templates into this folder if empty">
+              <span>📥 Init Sample Templates</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Master Word (.docx) and Markdown (.md) resume and cover letter layout templates.
+          </p>
+          <div class="flex items-center space-x-2">
+            <input type="text" id="storage-input-templates_dir" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-teal-500" placeholder="e.g. C:\Users\YourName\Documents\MyTemplates">
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <span id="storage-badge-templates_dir"></span>
+            <span class="text-[10px] text-slate-500">Env Override: RESUME_LAB_TEMPLATES_DIR</span>
+          </div>
+        </div>
+
+        <!-- 3. Output Directory -->
+        <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-sm">⚡</span>
+              <span class="font-bold text-white">Active Tailored Outputs Directory</span>
+              <span id="storage-flag-output_dir"></span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Active working tailored resume, cover letter, Word files (.docx), and compliance report drafts.
+          </p>
+          <div class="flex items-center space-x-2">
+            <input type="text" id="storage-input-output_dir" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-teal-500" placeholder="e.g. C:\Users\YourName\Documents\ResumeOutputs">
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <span id="storage-badge-output_dir"></span>
+            <span class="text-[10px] text-slate-500">Env Override: RESUME_LAB_OUTPUT_DIR</span>
+          </div>
+        </div>
+
+        <!-- 4. Applications Archive Directory -->
+        <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="text-sm">🗄️</span>
+              <span class="font-bold text-white">Applications Archive Library Directory</span>
+              <span id="storage-flag-apps_dir"></span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Permanent library of completed application bundles, each organized by company and role with all 6 core assets.
+          </p>
+          <div class="flex items-center space-x-2">
+            <input type="text" id="storage-input-apps_dir" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200 font-mono text-xs focus:outline-none focus:border-teal-500" placeholder="e.g. C:\Users\YourName\Documents\MyArchivedApplications">
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <span id="storage-badge-apps_dir"></span>
+            <span class="text-[10px] text-slate-500">Env Override: RESUME_LAB_APPS_DIR</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+        <button onclick="resetStoragePaths()" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 border border-slate-800 hover:border-rose-800/40 transition">
+          ↺ Reset to Project Defaults
+        </button>
+        <div class="flex items-center space-x-2.5">
+          <button onclick="closeStorageModal()" class="px-4 py-2 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800 transition">
+            Cancel
+          </button>
+          <button onclick="saveStoragePaths()" id="btn-save-storage" class="px-4 py-2 rounded-lg text-xs font-semibold bg-teal-600 hover:bg-teal-500 text-white shadow-md shadow-teal-600/20 transition active:scale-95 flex items-center space-x-1.5">
+            <span>💾 Verify & Save Custom Paths</span>
+          </button>
         </div>
       </div>
 

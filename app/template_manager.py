@@ -5,41 +5,51 @@ import re
 import docx
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-TEMPLATE_DIR = os.path.join(BASE_DIR, "template")
-ACTIVE_TARGET_FILE = os.path.join(BASE_DIR, "output", "active_target.json")
+from storage_config import get_templates_dir, get_output_dir
+
 DEFAULT_TEMPLATE = "Resume of Raj Parikh.docx"
+
+def get_tmpl_dir():
+    return get_templates_dir()
+
+def get_active_target_file():
+    return os.path.join(get_output_dir(), "active_target.json")
 
 def sanitize_template_filename(filename):
     cleaned = re.sub(r'[\\/*?:"<>|]', "", str(filename))
     return cleaned.strip()
 
 def get_active_template():
-    if os.path.exists(ACTIVE_TARGET_FILE):
+    target_file = get_active_target_file()
+    tmpl_dir = get_tmpl_dir()
+    if os.path.exists(target_file):
         try:
-            with open(ACTIVE_TARGET_FILE, "r", encoding="utf-8") as f:
+            with open(target_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 tmpl = data.get("resume_template")
-                if tmpl and os.path.exists(os.path.join(TEMPLATE_DIR, os.path.basename(tmpl))):
+                if tmpl and os.path.exists(os.path.join(tmpl_dir, os.path.basename(tmpl))):
                     return os.path.basename(tmpl)
         except Exception:
             pass
-    if os.path.exists(os.path.join(TEMPLATE_DIR, DEFAULT_TEMPLATE)):
+    if os.path.exists(os.path.join(tmpl_dir, DEFAULT_TEMPLATE)):
         return DEFAULT_TEMPLATE
     for cand in ["Standard Executive Resume Template.md", "Standard Executive Resume Template.docx"]:
-        if os.path.exists(os.path.join(TEMPLATE_DIR, cand)):
+        if os.path.exists(os.path.join(tmpl_dir, cand)):
             return cand
     return DEFAULT_TEMPLATE
 
 def set_active_template(template_name):
+    tmpl_dir = get_tmpl_dir()
     clean_name = sanitize_template_filename(template_name)
-    target_path = os.path.join(TEMPLATE_DIR, clean_name)
+    target_path = os.path.join(tmpl_dir, clean_name)
     if not os.path.exists(target_path):
         raise FileNotFoundError(f"Template '{clean_name}' does not exist in template folder.")
         
     data = {}
-    if os.path.exists(ACTIVE_TARGET_FILE):
+    target_file = get_active_target_file()
+    if os.path.exists(target_file):
         try:
-            with open(ACTIVE_TARGET_FILE, "r", encoding="utf-8") as f:
+            with open(target_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
             data = {}
@@ -47,24 +57,25 @@ def set_active_template(template_name):
     data["resume_template"] = clean_name
     data["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    os.makedirs(os.path.dirname(ACTIVE_TARGET_FILE), exist_ok=True)
-    with open(ACTIVE_TARGET_FILE, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(target_file), exist_ok=True)
+    with open(target_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
         
     return clean_name
 
 def list_templates():
-    os.makedirs(TEMPLATE_DIR, exist_ok=True)
+    tmpl_dir = get_tmpl_dir()
+    os.makedirs(tmpl_dir, exist_ok=True)
     active_name = get_active_template()
     templates = []
     
     try:
-        entries = sorted(os.listdir(TEMPLATE_DIR))
+        entries = sorted(os.listdir(tmpl_dir))
     except Exception:
         entries = []
         
     for entry in entries:
-        full_path = os.path.join(TEMPLATE_DIR, entry)
+        full_path = os.path.join(tmpl_dir, entry)
         if not os.path.isfile(full_path):
             continue
             
@@ -109,8 +120,9 @@ def list_templates():
     }
 
 def inspect_template_details(template_name):
+    tmpl_dir = get_tmpl_dir()
     clean_name = sanitize_template_filename(template_name)
-    full_path = os.path.join(TEMPLATE_DIR, clean_name)
+    full_path = os.path.join(tmpl_dir, clean_name)
     if not os.path.exists(full_path):
         return {"error": f"Template '{clean_name}' not found."}
         
@@ -151,7 +163,8 @@ def inspect_template_details(template_name):
     return details
 
 def save_uploaded_template(filename, data_bytes=None, text_content=None):
-    os.makedirs(TEMPLATE_DIR, exist_ok=True)
+    tmpl_dir = get_tmpl_dir()
+    os.makedirs(tmpl_dir, exist_ok=True)
     clean_name = sanitize_template_filename(filename)
     if not clean_name:
         raise ValueError("Invalid template filename.")
@@ -160,7 +173,7 @@ def save_uploaded_template(filename, data_bytes=None, text_content=None):
     if ext not in ["docx", "md", "txt"]:
         raise ValueError("Only .docx or .md template files are accepted.")
         
-    target_path = os.path.join(TEMPLATE_DIR, clean_name)
+    target_path = os.path.join(tmpl_dir, clean_name)
     
     if data_bytes is not None:
         with open(target_path, "wb") as f:

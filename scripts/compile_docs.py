@@ -5,13 +5,21 @@ import json
 import sys
 import argparse
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
+try:
+    from storage_config import get_kb_dir, get_templates_dir, get_output_dir
+except Exception:
+    def get_kb_dir(): return os.path.join(os.path.dirname(__file__), "..", "knowledge_base")
+    def get_templates_dir(): return os.path.join(os.path.dirname(__file__), "..", "template")
+    def get_output_dir(): return os.path.join(os.path.dirname(__file__), "..", "output")
+
 def clean_xml_string(s):
     # docx library doesn't like some control characters in text strings
     # We clean out anything that is not printable or standard whitespace
     return "".join(ch for ch in s if ch.isprintable() or ch in '\n\r\t')
 
 def load_candidate_profile():
-    profile_path = os.path.join(os.path.dirname(__file__), "..", "knowledge_base", "candidate_profile.json")
+    profile_path = os.path.join(get_kb_dir(), "candidate_profile.json")
     if os.path.exists(profile_path):
         try:
             with open(profile_path, "r", encoding="utf-8") as f:
@@ -21,7 +29,7 @@ def load_candidate_profile():
     return None
 
 def load_active_target():
-    target_path = os.path.join(os.path.dirname(__file__), "..", "output", "active_target.json")
+    target_path = os.path.join(get_output_dir(), "active_target.json")
     if os.path.exists(target_path):
         try:
             with open(target_path, "r", encoding="utf-8") as f:
@@ -78,8 +86,7 @@ def add_paragraph_with_formatting(doc, text, style_name):
     return p
 
 def resolve_template_path(template_name_or_path, default_filename="Resume of Raj Parikh.docx"):
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    template_dir = os.path.join(base_dir, "template")
+    template_dir = get_templates_dir()
     
     if not template_name_or_path:
         active = load_active_target()

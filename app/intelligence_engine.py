@@ -1,13 +1,18 @@
 import os
 import re
 import json
+from storage_config import get_kb_dir
 
-def load_kb_data(base_dir):
-    kb_dir = os.path.join(base_dir, "knowledge_base")
-    if not os.path.exists(kb_dir):
-        example_dir = os.path.join(base_dir, "knowledge_base.example")
-        if os.path.exists(example_dir):
-            kb_dir = example_dir
+def load_kb_data(base_dir=None):
+    if base_dir:
+        kb_dir = os.path.join(base_dir, "knowledge_base")
+        if not os.path.exists(kb_dir):
+            example_dir = os.path.join(base_dir, "knowledge_base.example")
+            if os.path.exists(example_dir):
+                kb_dir = example_dir
+    else:
+        kb_dir = get_kb_dir()
+
     kb_files = {}
     if os.path.exists(kb_dir):
         for f in os.listdir(kb_dir):

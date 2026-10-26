@@ -11,7 +11,12 @@ import traceback
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
 from intelligence_engine import load_kb_data, analyze_jd_alignment, extract_jd_metadata, simulate_ats_analysis
-from application_manager import list_applications, save_application, load_application_files, detect_company_and_title, MY_APPS_DIR, get_active_target, set_active_target
+from application_manager import list_applications, save_application, load_application_files, detect_company_and_title, get_active_target, set_active_target
+from storage_config import (
+    get_kb_dir, get_templates_dir, get_output_dir, get_apps_dir, 
+    get_target_jd_path, get_all_storage_paths, update_storage_paths, 
+    reset_storage_paths, initialize_starter_files
+)
 from llm_copilot import (
     get_ollama_status, grounded_improve_text, audit_hallucinations_with_llama, 
     generate_grounded_document, build_instant_tailored_resume, build_instant_tailored_cover_letter,
@@ -85,13 +90,15 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.handle_get_templates()
         elif path == "/api/templates/inspect":
             self.handle_inspect_template(parsed)
+        elif path == "/api/storage-paths":
+            self.send_json(get_all_storage_paths())
         elif path.startswith("/api/download/"):
             filename = os.path.basename(path)
-            file_path = os.path.join(BASE_DIR, "output", filename)
+            file_path = os.path.join(get_output_dir(), filename)
             if not os.path.exists(file_path):
                 file_path = os.path.join(BASE_DIR, filename)
             if not os.path.exists(file_path):
-                file_path = os.path.join(BASE_DIR, "template", filename)
+                file_path = os.path.join(get_templates_dir(), filename)
             if os.path.exists(file_path):
                 content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if filename.endswith(".docx") else "text/markdown"
                 self.serve_file(file_path, content_type, as_attachment=True, download_name=filename)
@@ -146,6 +153,12 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.handle_upload_template()
         elif path == "/api/format-resume-template":
             self.handle_format_resume_template()
+        elif path == "/api/storage-paths":
+            self.handle_save_storage_paths()
+        elif path == "/api/storage-paths/reset":
+            self.handle_reset_storage_paths()
+        elif path == "/api/storage-paths/init-sample":
+            self.handle_init_sample_storage()
         else:
             self.send_json({"error": "Not Found"}, 404)
 
@@ -165,12 +178,13 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.send_json({"error": str(e)}, 500)
 
     def handle_get_status(self):
-        jd_path = os.path.join(BASE_DIR, "target_jd.md")
-        resume_docx = os.path.join(BASE_DIR, "output", "tailored_resume.docx")
-        cl_docx = os.path.join(BASE_DIR, "output", "tailored_cover_letter.docx")
-        resume_md = os.path.join(BASE_DIR, "output", "tailored_resume.md")
-        cl_md = os.path.join(BASE_DIR, "output", "tailored_cover_letter.md")
-        report_md = os.path.join(BASE_DIR, "output", "compliance_report.md")
+        output_dir = get_output_dir()
+        jd_path = get_target_jd_path()
+        resume_docx = os.path.join(output_dir, "tailored_resume.docx")
+        cl_docx = os.path.join(output_dir, "tailored_cover_letter.docx")
+        resume_md = os.path.join(output_dir, "tailored_resume.md")
+        cl_md = os.path.join(output_dir, "tailored_cover_letter.md")
+        report_md = os.path.join(output_dir, "compliance_report.md")
 
         jd_text = ""
         if os.path.exists(jd_path):
@@ -199,13 +213,13 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         self.send_json(status_data)
 
     def handle_get_jd(self):
-        jd_path = os.path.join(BASE_DIR, "target_jd.md")
+        jd_path = get_target_jd_path()
         jd_text = ""
         if os.path.exists(jd_path):
             with open(jd_path, "r", encoding="utf-8") as f:
                 jd_text = f.read()
         
-        kb_files = load_kb_data(BASE_DIR)
+        kb_files = load_kb_data()
         analysis = analyze_jd_alignment(jd_text, kb_files)
         target = get_active_target()
         if target:
@@ -228,11 +242,12 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             det = detect_company_and_title(jd_text)
             set_active_target(det["company"], det["title"])
 
-        jd_path = os.path.join(BASE_DIR, "target_jd.md")
+        output_dir = get_output_dir()
+        jd_path = get_target_jd_path()
         with open(jd_path, "w", encoding="utf-8") as f:
             f.write(jd_text)
         
-        kb_files = load_kb_data(BASE_DIR)
+        kb_files = load_kb_data()
         analysis = analyze_jd_alignment(jd_text, kb_files)
         target = get_active_target()
         if target:
@@ -244,7 +259,7 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         t_tit = target["title"] if target else "Technology Leader"
         
         tailored_resume = build_instant_tailored_resume(t_comp, t_tit, jd_text)
-        with open(os.path.join(BASE_DIR, "output", "tailored_resume.md"), "w", encoding="utf-8") as f:
+        with open(os.path.join(output_dir, "tailored_resume.md"), "w", encoding="utf-8") as f:
             f.write(tailored_resume)
             
         tailored_cl = build_instant_tailored_cover_letter(t_comp, t_tit, jd_text)
@@ -278,18 +293,19 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         target = set_active_target(company, title)
         
         # When target is updated, realign resume & cover letter
-        jd_path = os.path.join(BASE_DIR, "target_jd.md")
+        jd_path = get_target_jd_path()
         jd_text = ""
         if os.path.exists(jd_path):
             with open(jd_path, "r", encoding="utf-8") as f:
                 jd_text = f.read()
 
+        output_dir = get_output_dir()
         tailored_resume = build_instant_tailored_resume(target["company"], target["title"], jd_text)
-        with open(os.path.join(BASE_DIR, "output", "tailored_resume.md"), "w", encoding="utf-8") as f:
+        with open(os.path.join(output_dir, "tailored_resume.md"), "w", encoding="utf-8") as f:
             f.write(tailored_resume)
             
         tailored_cl = build_instant_tailored_cover_letter(target["company"], target["title"], jd_text)
-        with open(os.path.join(BASE_DIR, "output", "tailored_cover_letter.md"), "w", encoding="utf-8") as f:
+        with open(os.path.join(output_dir, "tailored_cover_letter.md"), "w", encoding="utf-8") as f:
             f.write(tailored_cl)
 
         self.send_json({
@@ -304,14 +320,15 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         target = get_active_target() or {}
         company = data.get("company") or target.get("company", "Target Company")
         title = data.get("title") or target.get("title", "Technology Leader")
-        jd_path = os.path.join(BASE_DIR, "target_jd.md")
+        jd_path = get_target_jd_path()
         jd_text = data.get("jd") or ""
         if not jd_text and os.path.exists(jd_path):
             with open(jd_path, "r", encoding="utf-8") as f:
                 jd_text = f.read()
 
+        output_dir = get_output_dir()
         tailored_resume = build_instant_tailored_resume(company, title, jd_text)
-        with open(os.path.join(BASE_DIR, "output", "tailored_resume.md"), "w", encoding="utf-8") as f:
+        with open(os.path.join(output_dir, "tailored_resume.md"), "w", encoding="utf-8") as f:
             f.write(tailored_resume)
 
         self.send_json({
@@ -388,8 +405,9 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         self.send_json(ats_results)
 
     def handle_get_outputs(self):
+        output_dir = get_output_dir()
         def read_file(name):
-            p = os.path.join(BASE_DIR, "output", name)
+            p = os.path.join(output_dir, name)
             if os.path.exists(p):
                 with open(p, "r", encoding="utf-8") as f:
                     return f.read()
@@ -404,7 +422,7 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
 
     def handle_save_outputs(self):
         data = self.read_post_json()
-        out_dir = os.path.join(BASE_DIR, "output")
+        out_dir = get_output_dir()
         os.makedirs(out_dir, exist_ok=True)
         
         if "resume" in data:
@@ -448,7 +466,7 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e)}, 500)
 
     def handle_get_kb(self):
-        kb_files = load_kb_data(BASE_DIR)
+        kb_files = load_kb_data()
         self.send_json(kb_files)
 
     def handle_save_kb(self):
@@ -457,7 +475,9 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         content = data.get("content")
         if filename and content is not None:
             safe_name = os.path.basename(filename)
-            kb_path = os.path.join(BASE_DIR, "knowledge_base", safe_name)
+            kb_dir = get_kb_dir()
+            os.makedirs(kb_dir, exist_ok=True)
+            kb_path = os.path.join(kb_dir, safe_name)
             with open(kb_path, "w", encoding="utf-8") as f:
                 f.write(content)
             self.send_json({"success": True, "message": f"{safe_name} saved"})
@@ -480,7 +500,7 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         data = self.read_post_json()
         target = data.get("company", "")
         # Check my_applications directory for matching files
-        my_app_dir = os.path.join(BASE_DIR, "my_applications")
+        my_app_dir = get_apps_dir()
         loaded_jd = ""
         
         if os.path.exists(my_app_dir):
@@ -496,10 +516,10 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
                             pass
         
         if loaded_jd:
-            jd_path = os.path.join(BASE_DIR, "target_jd.md")
+            jd_path = get_target_jd_path()
             with open(jd_path, "w", encoding="utf-8") as f:
                 f.write(loaded_jd)
-            kb_files = load_kb_data(BASE_DIR)
+            kb_files = load_kb_data()
             analysis = analyze_jd_alignment(loaded_jd, kb_files)
             self.send_json({"success": True, "jd": loaded_jd, "analysis": analysis})
         else:
@@ -559,7 +579,7 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             return
         safe_folder = os.path.basename(folder)
         safe_fname = os.path.basename(fname)
-        fpath = os.path.join(MY_APPS_DIR, safe_folder, safe_fname)
+        fpath = os.path.join(get_apps_dir(), safe_folder, safe_fname)
         if os.path.exists(fpath):
             ctype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if safe_fname.endswith(".docx") else "text/markdown"
             self.serve_file(fpath, ctype, as_attachment=True, download_name=safe_fname)
@@ -794,6 +814,30 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
                     "success": False,
                     "error": res.stderr or res.stdout
                 }, 500)
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 500)
+
+    def handle_save_storage_paths(self):
+        try:
+            data = self.read_post_json()
+            updated = update_storage_paths(data)
+            self.send_json({"success": True, "paths": updated})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 400)
+
+    def handle_reset_storage_paths(self):
+        try:
+            res = reset_storage_paths()
+            self.send_json({"success": True, "paths": res})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 500)
+
+    def handle_init_sample_storage(self):
+        try:
+            data = self.read_post_json()
+            component = data.get("component", "kb")
+            res = initialize_starter_files(component)
+            self.send_json(res)
         except Exception as e:
             self.send_json({"success": False, "error": str(e)}, 500)
 
