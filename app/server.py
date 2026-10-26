@@ -26,6 +26,7 @@ from profile_manager import get_candidate_profile, save_candidate_profile, apply
 from template_manager import list_templates, get_active_template, set_active_template, inspect_template_details, save_uploaded_template
 
 PORT = int(os.environ.get("PORT", 5050))
+DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in ("true", "1", "yes")
 
 class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
     def end_headers(self):
@@ -110,6 +111,14 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+
+        if DEMO_MODE and path not in ("/api/analyze", "/api/ats-audit", "/api/applications/load", "/api/llm/test-connection"):
+            self.send_json({
+                "success": False,
+                "demo_mode": True,
+                "error": "This is a demonstration preview site. Live generation, compiling, and saving are disabled. Install and run Resume Lab AI Studio locally on your computer to use all features."
+            }, 403)
+            return
 
         if path == "/api/jd":
             self.handle_save_jd()
@@ -208,7 +217,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             "cl_docx_updated": datetime.datetime.fromtimestamp(os.path.getmtime(cl_docx)).strftime('%Y-%m-%d %H:%M:%S') if os.path.exists(cl_docx) else None,
             "has_resume_md": os.path.exists(resume_md),
             "has_cl_md": os.path.exists(cl_md),
-            "has_report_md": os.path.exists(report_md)
+            "has_report_md": os.path.exists(report_md),
+            "demo_mode": DEMO_MODE
         }
         self.send_json(status_data)
 

@@ -12,7 +12,8 @@ FROM python:3.11-slim
 # Set environment settings
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=8080
+    PORT=8080 \
+    DEMO_MODE=true
 
 WORKDIR /app
 
