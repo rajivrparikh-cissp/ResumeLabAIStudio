@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  resume-lab-studio:
+    build: .
+    container_name: resume-lab-ai-studio
+    ports:
+      - "5050:8080"
+    environment:
+      - PORT=8080
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      # Mount user's private local folders into container
+      - ./knowledge_base:/app/knowledge_base
+      - ./template:/app/template
+      - ./output:/app/output
+      - ./my_applications:/app/my_applications
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

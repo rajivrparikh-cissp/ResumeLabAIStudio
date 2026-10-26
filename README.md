@@ -92,6 +92,15 @@ Resume Lab AI Studio offers flexible, privacy-first AI intelligence. Choose the 
 
 ---
 
+### 🐳 Docker & Docker Compose (Containerized Local Run)
+Run the application in a local isolated container with your local folders mapped:
+```bash
+docker compose up -d
+```
+Access the studio at `http://localhost:5050`. Your files remain mounted in your host directories.
+
+---
+
 ## 🛠️ Developer & Manual Installation
 
 ```bash
@@ -117,16 +126,30 @@ Open your browser to: **`http://localhost:5050`**
 ### Run Automated E2E Verification Suite
 ```bash
 python tests/test_e2e_pipeline.py
+python tests/test_storage_config.py
 ```
 
 ---
 
-## ☁️ Google Cloud Run Live Deployment
+## ☁️ Cloud Hosting: Deploy to GCP, AWS, or Azure
 
+The application is completely containerized, stateless, and ready to deploy to any major cloud provider in under 3 minutes.
+
+📖 **See the complete [Cloud Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** for detailed step-by-step commands.
+
+### Quick Deployment Summaries:
+
+| Cloud Provider | Recommended Service | Deployment Command / Method |
+| :--- | :--- | :--- |
+| **Google Cloud (GCP)** | **Cloud Run** (Serverless) | `gcloud run deploy resume-lab-ai-studio --source . --region australia-southeast1 --allow-unauthenticated` |
+| **Amazon Web Services (AWS)** | **AWS App Runner** | Push container to Amazon ECR & deploy via AWS App Runner (Port `8080`) |
+| **Microsoft Azure** | **Azure Container Apps** | `az containerapp up --name resume-lab-ai-studio --source . --target-port 8080 --ingress external` |
+
+### Live GCP Cloud Run Reference:
 - **Live URL**: [https://resume-lab-ai-studio-135378541186.australia-southeast1.run.app](https://resume-lab-ai-studio-135378541186.australia-southeast1.run.app)
 - **GCP Project**: `passiveincome01`
 - **Region**: `australia-southeast1` (Sydney)
-- **Security Policy**: Zero-Cloud PII Architecture. Strictly stateless compute with non-root Docker execution (`appuser:10001`). All user resumes and knowledge base files remain on each user's local machine.
+- **Security Policy**: Zero-Cloud PII Architecture. Non-root execution (`appuser:10001`). All private candidate knowledge bases and files stay on local machines.
 
 ---
 
