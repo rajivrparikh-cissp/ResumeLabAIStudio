@@ -54,55 +54,81 @@ Resume_lab/
 
 ---
 
-## 🚀 Getting Started
+## 🤖 AI Engine Flexibility: Cloud GenAI (BYOK) vs. 100% Private Local LLM
 
-### 1. Prerequisites
-- Python 3.10+
-- (Optional) Local [Ollama](https://ollama.com) running `llama3.2` on port 11434
+Resume Lab AI Studio offers flexible, privacy-first AI intelligence. Choose the setup that fits your workflow:
 
-### 2. Installation
+### Option A: Bring Your Own GenAI API Key (Cloud or Local)
+- **Supported Providers**:
+  - **Google Gemini** (Gemini 1.5 Flash, Gemini 1.5 Pro) — *Generous free tier at [aistudio.google.com](https://aistudio.google.com/app/apikey)*
+  - **OpenAI** (GPT-4o, GPT-4o-mini)
+  - **Groq Cloud** (LLaMA 3.3 70B @ 200+ tok/s) — *Free tier at [console.groq.com](https://console.groq.com)*
+  - **Anthropic Claude** (Claude 3.5 Sonnet)
+- **Works Anywhere**: Use in the live Cloud Run deployment or on your local machine.
+- **Client-Side Privacy**: Your API key is stored **only in your browser's local storage** (`localStorage`) and is never written to cloud disks or databases.
+
+### Option B: 100% Private Local LLM (Ollama / LM Studio)
+- **Supported Models**: `llama3.2`, `mistral`, `deepseek-r1`, `qwen2.5`, etc.
+- **Complete Privacy**: Zero data or prompts ever leave your personal computer. Free forever with no API limits.
+- **⚠️ Why Local Installation is Required for Local LLMs**:
+  A cloud-hosted website (like Google Cloud Run) **cannot connect to your home computer's `http://localhost:11434`** due to browser cross-origin network security rules. To use your private local Ollama instance, you simply run this app locally on your machine (`http://localhost:5050`).
+
+---
+
+## 🚀 Easy 2-Minute Setup (Non-Technical Friendly)
+
+### 🪟 Windows (1-Click Launch)
+1. **Install Ollama** (if using local AI): Download from [ollama.com](https://ollama.com) and run `ollama run llama3.2`.
+2. **Download or Clone this App**: Extract the folder onto your computer.
+3. **Double-Click `start_studio.bat`**: That's it! It automatically verifies Python, sets up dependencies, and opens `http://localhost:5050` in your default browser.
+
+### 🍎 macOS / Linux (1-Click Launch)
+1. **Install Ollama**: Download from [ollama.com](https://ollama.com) and run `ollama run llama3.2`.
+2. **Run the Script**: Open Terminal in this folder and type:
+   ```bash
+   ./start_studio.sh
+   ```
+   The studio will launch and open automatically in your browser.
+
+---
+
+## 🛠️ Developer & Manual Installation
+
 ```bash
-# Clone the repository
+# 1. Clone repository
 git clone https://github.com/rajivrparikh-cissp/ResumeLabAIStudio.git
 cd ResumeLabAIStudio
 
-# Create and activate virtual environment
+# 2. Virtual environment
 python -m venv .venv
 # Windows:
 .venv\Scripts\activate
-# Linux/macOS:
+# Mac/Linux:
 source .venv/bin/activate
 
-# Install dependencies
+# 3. Dependencies
 pip install -r requirements.txt
-```
 
-### 3. Run the Studio
-```bash
+# 4. Start Server
 python app/server.py
 ```
 Open your browser to: **`http://localhost:5050`**
 
-### 4. Run Automated E2E Verification
+### Run Automated E2E Verification Suite
 ```bash
 python tests/test_e2e_pipeline.py
 ```
 
 ---
 
-## ☁️ Cloud Deployment (GCP Project: `passiveincome01`)
+## ☁️ Google Cloud Run Live Deployment
 
-### Deploy to Google Cloud Run:
-```bash
-gcloud config set project passiveincome01
-gcloud run deploy resume-lab-studio \
-  --source . \
-  --region australia-southeast1 \
-  --allow-unauthenticated \
-  --port 5050
-```
+- **Live URL**: [https://resume-lab-ai-studio-135378541186.australia-southeast1.run.app](https://resume-lab-ai-studio-135378541186.australia-southeast1.run.app)
+- **GCP Project**: `passiveincome01`
+- **Region**: `australia-southeast1` (Sydney)
+- **Security Policy**: Zero-Cloud PII Architecture. Strictly stateless compute with non-root Docker execution (`appuser:10001`). All user resumes and knowledge base files remain on each user's local machine.
 
 ---
 
 ## 📄 License
-Private & Proprietary • Rajiv (Raj) Parikh
+MIT License • Open Source for personal career empowerment.

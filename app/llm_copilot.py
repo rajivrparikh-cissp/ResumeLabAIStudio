@@ -5,24 +5,44 @@ import os
 import re
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 
-def get_ollama_status():
+def get_candidate_profile_data():
     try:
-        req = urllib.request.Request(f"{OLLAMA_BASE_URL}/api/tags", headers={"User-Agent": "ResumeLab/1.0"})
+        from profile_manager import get_candidate_profile
+        return get_candidate_profile()
+    except Exception:
+        return {
+            "full_name": "Senior Technology Leader",
+            "preferred_name": "Candidate",
+            "address": "Sydney, NSW, Australia",
+            "phone": "+61 400 000 000",
+            "email": "candidate@example.com",
+            "citizenship": "Australian Citizen / Permanent Resident",
+            "linkedin": "https://www.linkedin.com/in/candidate",
+            "portfolio_url": "https://github.com/candidate",
+            "total_years_experience": "20+",
+            "target_title": "Head of Technology & Cybersecurity / Infrastructure Director",
+            "core_credentials": "CISSP | CISM | Cloud Architecture | DevOps | Executive Leadership"
+        }
+
+def get_ollama_status(ollama_url=None):
+    base_url = ollama_url or OLLAMA_BASE_URL
+    try:
+        req = urllib.request.Request(f"{base_url}/api/tags", headers={"User-Agent": "ResumeLab/1.0"})
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             models = [m.get("name") for m in data.get("models", [])]
             return {
                 "online": True,
-                "url": OLLAMA_BASE_URL,
+                "url": base_url,
                 "models": models,
                 "default_model": models[0] if models else "llama3.2"
             }
     except Exception as e:
         return {
             "online": False,
-            "url": OLLAMA_BASE_URL,
+            "url": base_url,
             "error": str(e),
             "models": [],
             "default_model": "llama3.2"
@@ -31,6 +51,8 @@ def get_ollama_status():
 def load_kb_summary(max_chars=3500):
     """Loads and formats a concise summary of the candidate's verified knowledge base."""
     kb_dir = os.path.join(BASE_DIR, "knowledge_base")
+    if not os.path.exists(kb_dir):
+        kb_dir = os.path.join(BASE_DIR, "knowledge_base.example")
     sections = []
     
     # Candidate Profile Truth (Address, Experience, Contact)
@@ -58,7 +80,8 @@ def load_kb_summary(max_chars=3500):
     combined = "\n\n".join(sections)
     return combined[:max_chars]
 
-def query_ollama(prompt, system_prompt="", model="llama3.2", temperature=0.15, timeout=120, num_predict=600, num_ctx=4096):
+def query_ollama(prompt, system_prompt="", model="llama3.2", temperature=0.15, timeout=120, num_predict=600, num_ctx=4096, base_url=None):
+    url = (base_url or OLLAMA_BASE_URL).rstrip("/")
     payload = {
         "model": model,
         "prompt": prompt,
@@ -73,7 +96,7 @@ def query_ollama(prompt, system_prompt="", model="llama3.2", temperature=0.15, t
     }
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        f"{OLLAMA_BASE_URL}/api/generate",
+        f"{url}/api/generate",
         data=data,
         headers={"Content-Type": "application/json"}
     )
@@ -82,9 +105,204 @@ def query_ollama(prompt, system_prompt="", model="llama3.2", temperature=0.15, t
             result = json.loads(resp.read().decode("utf-8"))
             return result.get("response", "").strip()
     except Exception as e:
-        raise RuntimeError(f"Ollama inference failed: {str(e)}")
+        raise RuntimeError(f"Ollama inference failed at {url}: {str(e)}")
 
-def grounded_improve_text(selected_text, doc_type="resume", jd_text="", instruction="", model="llama3.2"):
+def query_llm(prompt, system_prompt="", provider="local", model="llama3.2", api_key="", temperature=0.15, timeout=120, num_predict=1500, ollama_url=None):
+    """
+    Universal multi-provider LLM query dispatcher.
+    Supports:
+    - local: Ollama or local API endpoint (100% private, runs on user machine)
+    - gemini: Google Gemini API (gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash-exp)
+    - openai: OpenAI API (gpt-4o, gpt-4o-mini)
+    - groq: Groq Cloud API (llama-3.3-70b-versatile, mixtral-8x7b-32768)
+    - anthropic: Anthropic Claude API (claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022)
+    """
+    provider = (provider or "local").lower().strip()
+
+    # 1. Local LLM (Ollama)
+    if provider == "local":
+        return query_ollama(
+            prompt,
+            system_prompt=system_prompt,
+            model=model or "llama3.2",
+            temperature=temperature,
+            timeout=timeout,
+            num_predict=num_predict,
+            base_url=ollama_url
+        )
+
+    # 2. Google Gemini API
+    elif provider == "gemini":
+        key = api_key or os.environ.get("GEMINI_API_KEY", "")
+        if not key:
+            raise ValueError("Google Gemini API key required. Please enter your key in AI Engine Setup.")
+        model_name = model or "gemini-1.5-flash"
+        if not model_name.startswith("gemini-"):
+            model_name = "gemini-1.5-flash"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+
+        contents = [{"parts": [{"text": prompt}]}]
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": num_predict
+            }
+        }
+        if system_prompt:
+            payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates", [])
+                if candidates and "content" in candidates[0] and "parts" in candidates[0]["content"]:
+                    return candidates[0]["content"]["parts"][0].get("text", "").strip()
+                raise RuntimeError("Empty response received from Gemini API.")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            try:
+                msg = json.loads(err_body).get("error", {}).get("message", err_body)
+            except Exception:
+                msg = err_body
+            raise RuntimeError(f"Gemini API Error ({e.code}): {msg}")
+        except Exception as e:
+            raise RuntimeError(f"Gemini connection failed: {str(e)}")
+
+    # 3. OpenAI / Groq (OpenAI-compatible)
+    elif provider in ["openai", "groq"]:
+        if provider == "openai":
+            key = api_key or os.environ.get("OPENAI_API_KEY", "")
+            base_url = "https://api.openai.com/v1/chat/completions"
+            default_model = "gpt-4o-mini"
+        else: # groq
+            key = api_key or os.environ.get("GROQ_API_KEY", "")
+            base_url = "https://api.groq.com/openai/v1/chat/completions"
+            default_model = "llama-3.3-70b-versatile"
+
+        if not key:
+            raise ValueError(f"{provider.upper()} API key required. Please enter your key in AI Engine Setup.")
+
+        model_name = model or default_model
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": num_predict
+        }
+        req = urllib.request.Request(
+            base_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {key}"
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                choices = data.get("choices", [])
+                if choices and "message" in choices[0]:
+                    return choices[0]["message"].get("content", "").strip()
+                raise RuntimeError(f"Empty response received from {provider.upper()} API.")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            try:
+                msg = json.loads(err_body).get("error", {}).get("message", err_body)
+            except Exception:
+                msg = err_body
+            raise RuntimeError(f"{provider.upper()} API Error ({e.code}): {msg}")
+        except Exception as e:
+            raise RuntimeError(f"{provider.upper()} connection failed: {str(e)}")
+
+    # 4. Anthropic Claude
+    elif provider == "anthropic":
+        key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        if not key:
+            raise ValueError("Anthropic API key required. Please enter your key in AI Engine Setup.")
+        model_name = model or "claude-3-5-sonnet-20241022"
+        base_url = "https://api.anthropic.com/v1/messages"
+
+        payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": num_predict,
+            "temperature": temperature
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+
+        req = urllib.request.Request(
+            base_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01"
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                contents = data.get("content", [])
+                if contents and "text" in contents[0]:
+                    return contents[0].get("text", "").strip()
+                raise RuntimeError("Empty response received from Anthropic API.")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8")
+            try:
+                msg = json.loads(err_body).get("error", {}).get("message", err_body)
+            except Exception:
+                msg = err_body
+            raise RuntimeError(f"Anthropic API Error ({e.code}): {msg}")
+        except Exception as e:
+            raise RuntimeError(f"Anthropic connection failed: {str(e)}")
+
+    else:
+        raise ValueError(f"Unsupported AI provider: '{provider}'. Supported providers: local, gemini, openai, groq, anthropic.")
+
+def test_llm_connection(provider="local", model="", api_key="", ollama_url=None):
+    """Diagnostic tool to verify connectivity to any supported AI engine."""
+    provider = (provider or "local").lower().strip()
+    test_prompt = "Hello! Please reply with exactly one word: 'CONNECTED'."
+    try:
+        reply = query_llm(
+            test_prompt,
+            system_prompt="You are an automated connectivity test diagnostic.",
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            temperature=0.1,
+            timeout=15,
+            num_predict=20,
+            ollama_url=ollama_url
+        )
+        return {
+            "success": True,
+            "provider": provider,
+            "model": model,
+            "reply": reply[:100],
+            "message": f"Successfully connected to {provider.upper()} ({model or 'default'})."
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "provider": provider,
+            "model": model,
+            "error": str(e)
+        }
+
+def grounded_improve_text(selected_text, doc_type="resume", jd_text="", instruction="", model="llama3.2", provider="local", api_key="", ollama_url=None):
     kb_summary = load_kb_summary(max_chars=3500)
     
     if not instruction:
@@ -119,7 +337,7 @@ def grounded_improve_text(selected_text, doc_type="resume", jd_text="", instruct
 Apply the instruction strictly using ONLY verified facts. Output the improved text directly:"""
 
     try:
-        res = query_ollama(user_prompt, system_prompt=system_prompt, model=model, temperature=0.15)
+        res = query_llm(user_prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.15, ollama_url=ollama_url)
         # Clean any wrapping markdown code blocks if the model wrapped everything
         if res.startswith("```markdown\n") and res.endswith("```"):
             res = res[12:-3].strip()
@@ -129,7 +347,7 @@ Apply the instruction strictly using ONLY verified facts. Output the improved te
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-def audit_hallucinations_with_llama(resume_text, jd_text="", model="llama3.2"):
+def audit_hallucinations_with_llama(resume_text, jd_text="", model="llama3.2", provider="local", api_key="", ollama_url=None):
     kb_summary = load_kb_summary(max_chars=2000)
 
     system_prompt = (
@@ -150,7 +368,7 @@ def audit_hallucinations_with_llama(resume_text, jd_text="", model="llama3.2"):
 Generate the concise audit report:"""
 
     try:
-        res = query_ollama(user_prompt, system_prompt=system_prompt, model=model, temperature=0.1)
+        res = query_llm(user_prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.1, ollama_url=ollama_url)
         return {"success": True, "report": res}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -216,6 +434,15 @@ def build_instant_tailored_cover_letter(target_company="Target Company", target_
         f"I welcome the opportunity to discuss how my technical leadership and operational experience can deliver immediate impact for {target_company}."
     )
 
+    # Candidate Profile Truth (dynamically loaded from local KB or generic default)
+    prof = get_candidate_profile_data()
+    cand_name = prof.get("preferred_name") or prof.get("full_name", "Senior Technology Leader")
+    cand_addr = prof.get("address", "Sydney, NSW, Australia")
+    cand_phone = prof.get("phone", "+61 400 000 000")
+    cand_email = prof.get("email", "candidate@example.com")
+    cand_li = prof.get("linkedin", "https://www.linkedin.com/in/candidate")
+    cand_port = prof.get("portfolio_url", "https://github.com/candidate")
+
     # Full Document
     return f"""**RE:** {target_title} Position
 
@@ -237,10 +464,10 @@ Thank you for your time and consideration.
 
 **Sincerely,**
 
-Rajiv (Raj) Parikh  
-169a Purchase Road, Cherrybrook, NSW 2126  
-0433 463 121 | [raj.parikh@hotmail.com](mailto:raj.parikh@hotmail.com)  
-[LinkedIn Profile](https://www.linkedin.com/in/rajivparikh) | [Live ITSM Portfolio](https://itsmtracker.crashcoursetech.com)
+{cand_name}  
+{cand_addr}  
+{cand_phone} | [{cand_email}](mailto:{cand_email})  
+[LinkedIn Profile]({cand_li}) | [Portfolio]({cand_port})
 """
 
 def build_instant_tailored_resume(target_company="Target Company", target_title="Technology Leader", jd_text=""):
@@ -321,10 +548,19 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
 * **Enterprise Networking & Edge Security:** Cisco Routing & Switching (Catalyst, ISRs), Fortinet FortiGate, Checkpoint Firewalls, SD-WAN, Site-to-Site IPsec VPNs, Enterprise Wireless LAN Controllers (WLC), Secure Web Gateways.
 * **Vendor & Commercial Management:** Managing Vendors & Technology Partners, SLA & Contract Negotiation, MSP Performance Auditing, RFP/RFI Evaluation, Technical Change Advisory Boards (TCAB/DCAB), ITIL v3/v4 Service Management."""
 
-    return f"""# Rajiv (Raj) Parikh
+    prof = get_candidate_profile_data()
+    cand_full = prof.get("full_name", "Senior Technology Leader")
+    cand_addr = prof.get("address", "Sydney, NSW, Australia")
+    cand_phone = prof.get("phone", "+61 400 000 000")
+    cand_email = prof.get("email", "candidate@example.com")
+    cand_cit = prof.get("citizenship", "Australian Citizen")
+    cand_li = prof.get("linkedin", "https://www.linkedin.com/in/candidate")
+    cand_port = prof.get("portfolio_url", "https://github.com/candidate")
+
+    return f"""# {cand_full}
 {subtitle}  
-169a Purchase Road, Cherrybrook, NSW 2126 | 0433 463 121 | raj.parikh@hotmail.com | Australian Citizen  
-[LinkedIn Profile](https://www.linkedin.com/in/rajivparikh) | [ITSM & Architecture Portfolio](https://itsmtracker.crashcoursetech.com)
+{cand_addr} | {cand_phone} | {cand_email} | {cand_cit}  
+[LinkedIn Profile]({cand_li}) | [Portfolio]({cand_port})
 
 ---
 
@@ -532,7 +768,7 @@ Rajiv (Raj) Parikh
         "formatting_rules": fmt_rules[:1000] if fmt_rules else ""
     }
 
-def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", target_company="", target_title=""):
+def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", target_company="", target_title="", provider="local", api_key="", ollama_url=None):
     """Generates a complete, tailored draft strictly bounded to the target company, target title, and verified KB."""
     from application_manager import detect_company_and_title
     det = detect_company_and_title(jd_text)
@@ -542,13 +778,17 @@ def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", 
     # If it's a cover letter, we can first build the instant grounded baseline
     if doc_type == "cl":
         instant_draft = build_instant_tailored_cover_letter(comp, title, jd_text)
-        # If Ollama is offline or if instant draft is sufficient, return it
-        status = get_ollama_status()
-        if not status.get("online"):
-            return {"success": True, "generated_text": instant_draft}
+        # If local and Ollama is offline and no API key is provided, return instant draft
+        if provider == "local":
+            status = get_ollama_status(ollama_url)
+            if not status.get("online"):
+                return {"success": True, "generated_text": instant_draft}
 
     kb_summary = load_kb_summary(max_chars=3500)
     format_data = load_application_format_exemplar(doc_type)
+    prof = get_candidate_profile_data()
+    prof_name = prof.get("full_name", "Senior Technology Leader")
+    prof_contact = f"{prof_name}, {prof.get('address', 'Sydney NSW')} | {prof.get('phone', '+61 400 000 000')} | {prof.get('email', 'candidate@example.com')} | {prof.get('total_years_experience', '20+')} experience"
     
     system_prompt = (
         "You are an Elite Executive Career Strategist and Anti-Hallucination Guardrail.\n"
@@ -558,7 +798,7 @@ def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", 
         f"2. The subject line (**RE:**) MUST BE EXACTLY: **RE:** {title} Position\n"
         f"3. The recipient block MUST address: {comp}\n"
         "4. DO NOT invent companies, job titles, employment dates, or certifications not in the verified candidate data.\n"
-        "5. Use the verified candidate profile for contact details (Rajiv (Raj) Parikh, Cherrybrook NSW, 25+ years experience).\n"
+        f"5. Use the verified candidate profile for contact details ({prof_name}, {prof.get('address', 'Sydney NSW')}, {prof.get('total_years_experience', '20+')} experience).\n"
         "6. Output ONLY the markdown document text. Do not provide conversational filler or preambles."
     )
 
@@ -598,7 +838,7 @@ Generate a comprehensive, print-ready, tailored Markdown Resume strictly aligned
 - Target Job Title: {title}
 - Subject Line (**RE:**): MUST BE EXACTLY: **RE:** {title} Position
 - Recipient Block: MUST BE: **{comp}**
-- Candidate Contact Info: Rajiv (Raj) Parikh, 169a Purchase Road, Cherrybrook, NSW 2126 | 0433 463 121 | raj.parikh@hotmail.com | 25+ years experience
+- Candidate Contact Info: {prof_contact}
 
 ### STRUCTURE TO FOLLOW:
 \"\"\"
@@ -609,7 +849,7 @@ Write a crisp, powerful, single-page tailored Markdown Cover Letter specifically
         num_predict = 650
 
     try:
-        res = query_ollama(prompt, system_prompt=system_prompt, model=model, temperature=0.15, num_predict=num_predict, num_ctx=4096)
+        res = query_llm(prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.15, num_predict=num_predict, ollama_url=ollama_url)
         if res.startswith("```markdown\n") and res.endswith("```"):
             res = res[12:-3].strip()
         elif res.startswith("```\n") and res.endswith("```"):

@@ -98,15 +98,16 @@
       </div>
     </div>
 
-    <!-- Local LLaMA Status Badge -->
-    <div id="llama-header-badge" class="hidden md:flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
-      <span class="text-xs">🦙</span>
-      <span class="text-xs text-slate-400">Local LLaMA:</span>
+    <!-- AI Engine & Model Setup Badge -->
+    <button onclick="openAiSetupModal()" id="llama-header-badge" class="hidden md:flex items-center space-x-2 bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-indigo-500/50 transition cursor-pointer" title="Configure AI Model: Local LLM or Bring Your Own API Key">
+      <span class="text-xs" id="header-ai-icon">🦙</span>
+      <span class="text-xs text-slate-400">AI Engine:</span>
       <span id="header-llama-status" class="text-xs font-semibold text-slate-400 flex items-center space-x-1">
         <span class="h-2 w-2 rounded-full bg-slate-500 inline-block"></span>
         <span>Checking...</span>
       </span>
-    </div>
+      <span class="text-[10px] text-indigo-400 font-mono ml-1">⚙️</span>
+    </button>
 
     <!-- Actions -->
     <div class="flex items-center space-x-2.5">
@@ -201,6 +202,10 @@
       <button onclick="openE2EModal()" class="tab-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-300 hover:text-white bg-amber-500/10 hover:bg-amber-600/30 border border-amber-500/30 flex items-center space-x-1.5 transition shadow-sm" title="Run Automated End-to-End Pipeline & Regression Tests">
         <span>🧪</span>
         <span>E2E Test SME</span>
+      </button>
+      <button onclick="openAiSetupModal()" id="btn-nav-ai-setup" class="tab-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/40 flex items-center space-x-1.5 transition shadow-sm" title="Configure AI Model: Local LLM or Bring Your Own API Key">
+        <span>🤖</span>
+        <span id="nav-ai-engine-label">AI Engine Setup</span>
       </button>
     </div>
 
@@ -526,13 +531,14 @@
       <!-- LLaMA Anti-Hallucination Copilot Toolbar -->
       <div class="p-3 bg-slate-900/90 border border-indigo-500/30 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
-          <div class="flex items-center space-x-2 bg-indigo-950/60 border border-indigo-500/40 px-2.5 py-1 rounded-lg">
-            <span class="text-base">🦙</span>
-            <span class="text-xs font-bold text-indigo-200">Local LLaMA Grounding Copilot</span>
+          <div onclick="openAiSetupModal()" class="flex items-center space-x-2 bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 px-2.5 py-1 rounded-lg cursor-pointer transition" title="Click to change AI engine or model">
+            <span class="text-base" id="toolbar-ai-icon">🦙</span>
+            <span class="text-xs font-bold text-indigo-200" id="toolbar-ai-label">AI Grounding Copilot</span>
             <span id="llama-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
               <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span id="llama-model-name">llama3.2 (Active)</span>
             </span>
+            <span class="text-[10px] text-indigo-400 font-mono">⚙️</span>
           </div>
           <span class="text-xs text-slate-400 hidden xl:inline">Strict zero-hallucination negative constraints anchored to Knowledge Base</span>
         </div>
@@ -725,9 +731,10 @@
       <!-- LLaMA Anti-Hallucination Cover Letter Toolbar -->
       <div class="p-3 bg-slate-900/90 border border-indigo-500/30 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
-          <div class="flex items-center space-x-2 bg-indigo-950/60 border border-indigo-500/40 px-2.5 py-1 rounded-lg">
-            <span class="text-base">🦙</span>
-            <span class="text-xs font-bold text-indigo-200">Local LLaMA Voice Polish</span>
+          <div onclick="openAiSetupModal()" class="flex items-center space-x-2 bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 px-2.5 py-1 rounded-lg cursor-pointer transition" title="Click to change AI engine or model">
+            <span class="text-base" id="toolbar-cl-ai-icon">🦙</span>
+            <span class="text-xs font-bold text-indigo-200" id="toolbar-cl-ai-label">AI Voice Polish</span>
+            <span class="text-[10px] text-indigo-400 font-mono">⚙️</span>
           </div>
           <span class="text-xs text-slate-400 hidden xl:inline">Ensures zero-invented narratives, strict candidate voice, and JD alignment</span>
         </div>
@@ -1810,6 +1817,9 @@
         // Templates
         await loadTemplates();
 
+        // AI Engine Badge
+        updateAiHeaderBadge();
+
         checkCoverLetterMismatch();
 
         showToast("Connected to Resume Lab Studio");
@@ -2631,8 +2641,338 @@
       }
     }
 
-    // LLaMA Copilot Integration
+    // =========================================================================
+    // MULTI-PROVIDER AI CONFIGURATION & LLM COPILOT
+    // =========================================================================
+    const AI_CONFIG_KEY = "resumelab_ai_config";
+    const AI_PROVIDER_MODELS = {
+      gemini: [
+        { id: "gemini-1.5-flash", name: "Gemini 1.5 Flash (Fast & Generous Free Tier)" },
+        { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro (Deep Nuance & Complex Reasoning)" },
+        { id: "gemini-2.0-flash-exp", name: "Gemini 2.0 Flash Experimental" }
+      ],
+      openai: [
+        { id: "gpt-4o-mini", name: "GPT-4o mini (Fast & Affordable)" },
+        { id: "gpt-4o", name: "GPT-4o (High Capability Executive Polish)" }
+      ],
+      groq: [
+        { id: "llama-3.3-70b-versatile", name: "LLaMA 3.3 70B (Ultra-Fast 200+ tok/s)" },
+        { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B (Fast Open Weights)" }
+      ],
+      anthropic: [
+        { id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet (Superior Writing Quality)" },
+        { id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku (Lightning Fast)" }
+      ]
+    };
+
+    const AI_KEY_LINKS = {
+      gemini: "https://aistudio.google.com/app/apikey",
+      openai: "https://platform.openai.com/api-keys",
+      groq: "https://console.groq.com/keys",
+      anthropic: "https://console.anthropic.com/settings/keys"
+    };
+
+    function getAiConfig() {
+      try {
+        const raw = localStorage.getItem(AI_CONFIG_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return {
+        provider: "local",
+        model: "llama3.2",
+        api_key: "",
+        ollama_url: "http://localhost:11434"
+      };
+    }
+
+    function saveAiConfig(cfg) {
+      localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(cfg));
+      updateAiHeaderBadge();
+    }
+
+    function openAiSetupModal() {
+      const modal = document.getElementById("ai-setup-modal");
+      if (!modal) return;
+      const cfg = getAiConfig();
+
+      // Set cloud fields
+      const provSelect = document.getElementById("ai-cfg-provider");
+      if (provSelect) {
+        provSelect.value = (cfg.provider && cfg.provider !== "local") ? cfg.provider : "gemini";
+        onAiProviderChanged();
+      }
+      const keyInput = document.getElementById("ai-cfg-key");
+      if (keyInput) keyInput.value = cfg.api_key || "";
+      const modelSelect = document.getElementById("ai-cfg-model");
+      if (modelSelect && cfg.model) modelSelect.value = cfg.model;
+
+      // Set local fields
+      const ollamaUrlInput = document.getElementById("ai-cfg-ollama-url");
+      if (ollamaUrlInput) ollamaUrlInput.value = cfg.ollama_url || "http://localhost:11434";
+      const localModelSelect = document.getElementById("ai-cfg-local-model");
+      if (localModelSelect && cfg.provider === "local" && cfg.model) localModelSelect.value = cfg.model;
+
+      // Switch tab based on current provider
+      if (cfg.provider === "local") {
+        switchAiTab("local");
+        checkLocalOllamaStatus();
+      } else {
+        switchAiTab("cloud");
+      }
+
+      modal.classList.remove("hidden");
+    }
+
+    function closeAiSetupModal() {
+      const modal = document.getElementById("ai-setup-modal");
+      if (modal) modal.classList.add("hidden");
+    }
+
+    function switchAiTab(tabName) {
+      const cloudTab = document.getElementById("ai-tab-cloud");
+      const localTab = document.getElementById("ai-tab-local");
+      const guideTab = document.getElementById("ai-tab-guide");
+      const btnCloud = document.getElementById("ai-tab-btn-cloud");
+      const btnLocal = document.getElementById("ai-tab-btn-local");
+      const btnGuide = document.getElementById("ai-tab-btn-guide");
+
+      if (cloudTab) cloudTab.classList.add("hidden");
+      if (localTab) localTab.classList.add("hidden");
+      if (guideTab) guideTab.classList.add("hidden");
+
+      if (btnCloud) btnCloud.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white flex items-center space-x-1.5 transition";
+      if (btnLocal) btnLocal.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white flex items-center space-x-1.5 transition";
+      if (btnGuide) btnGuide.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-600/20 flex items-center space-x-1.5 transition ml-auto";
+
+      if (tabName === "cloud") {
+        if (cloudTab) cloudTab.classList.remove("hidden");
+        if (btnCloud) btnCloud.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white flex items-center space-x-1.5 transition";
+      } else if (tabName === "local") {
+        if (localTab) localTab.classList.remove("hidden");
+        if (btnLocal) btnLocal.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white flex items-center space-x-1.5 transition";
+        checkLocalOllamaStatus();
+      } else if (tabName === "guide") {
+        if (guideTab) guideTab.classList.remove("hidden");
+        if (btnGuide) btnGuide.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white flex items-center space-x-1.5 transition ml-auto";
+      }
+    }
+
+    function onAiProviderChanged() {
+      const provSelect = document.getElementById("ai-cfg-provider");
+      if (!provSelect) return;
+      const prov = provSelect.value;
+      const modelSelect = document.getElementById("ai-cfg-model");
+      const link = document.getElementById("ai-get-key-link");
+
+      if (link && AI_KEY_LINKS[prov]) {
+        link.href = AI_KEY_LINKS[prov];
+        link.innerHTML = `<span>Get a free ${prov.toUpperCase()} API Key</span><span>↗</span>`;
+      }
+
+      if (modelSelect && AI_PROVIDER_MODELS[prov]) {
+        modelSelect.innerHTML = AI_PROVIDER_MODELS[prov]
+          .map(m => `<option value="${m.id}">${m.name}</option>`)
+          .join("");
+      }
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById("ai-cfg-key");
+      if (!input) return;
+      input.type = input.type === "password" ? "text" : "password";
+    }
+
+    function copyToClipboardText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`Copied to clipboard: ${text}`);
+      }).catch(() => {
+        showToast("Copy failed, please copy manually.");
+      });
+    }
+
+    async function testAiConnection() {
+      const provider = document.getElementById("ai-cfg-provider").value;
+      const model = document.getElementById("ai-cfg-model").value;
+      const apiKey = document.getElementById("ai-cfg-key").value.trim();
+      const statusEl = document.getElementById("ai-conn-status");
+      const btn = document.getElementById("btn-test-ai-conn");
+
+      if (!apiKey) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">Please enter an API key first</span>`;
+        return;
+      }
+
+      const origText = btn.innerHTML;
+      btn.innerHTML = `Testing...`;
+      btn.disabled = true;
+      if (statusEl) statusEl.innerHTML = `<span class="text-slate-400">Connecting to ${provider}...</span>`;
+
+      try {
+        const res = await fetch("/api/llm/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider, model, api_key: apiKey })
+        }).then(r => r.json());
+
+        if (res.success) {
+          if (statusEl) statusEl.innerHTML = `<span class="text-emerald-400">✅ Connected (${model})</span>`;
+          showToast(`Successfully verified connection to ${provider.toUpperCase()}!`);
+        } else {
+          if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">❌ ${res.error || 'Connection failed'}</span>`;
+        }
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">❌ ${err.message}</span>`;
+      } finally {
+        btn.innerHTML = origText;
+        btn.disabled = false;
+      }
+    }
+
+    async function checkLocalOllamaStatus() {
+      const diagEl = document.getElementById("modal-ollama-diag");
+      const modelSelect = document.getElementById("ai-cfg-local-model");
+      const ollamaUrl = document.getElementById("ai-cfg-ollama-url")?.value || "http://localhost:11434";
+
+      if (diagEl) diagEl.innerHTML = `<span class="text-slate-400">Probing ${ollamaUrl}...</span>`;
+
+      try {
+        const res = await fetch("/api/llm/status").then(r => r.json());
+        if (res.online) {
+          if (diagEl) diagEl.innerHTML = `<span class="text-emerald-400 font-bold">🟢 Online</span> - Models found: ${res.models?.join(", ") || 'none'}`;
+          if (modelSelect && res.models && res.models.length > 0) {
+            modelSelect.innerHTML = res.models.map(m => `<option value="${m}">${m}</option>`).join("");
+          }
+        } else {
+          if (diagEl) diagEl.innerHTML = `<span class="text-amber-400 font-bold">🟠 Offline</span> - ${res.error || 'Ollama not running on localhost:11434'}`;
+        }
+      } catch (err) {
+        if (diagEl) diagEl.innerHTML = `<span class="text-rose-400">Probe failed: ${err.message}</span>`;
+      }
+    }
+
+    async function testLocalOllamaConnection() {
+      const model = document.getElementById("ai-cfg-local-model").value;
+      const ollamaUrl = document.getElementById("ai-cfg-ollama-url").value;
+      const statusEl = document.getElementById("ai-local-conn-status");
+      const btn = document.getElementById("btn-test-ollama-conn");
+
+      const origText = btn.innerHTML;
+      btn.innerHTML = `Testing...`;
+      btn.disabled = true;
+
+      try {
+        const res = await fetch("/api/llm/test-connection", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider: "local", model, ollama_url: ollamaUrl })
+        }).then(r => r.json());
+
+        if (res.success) {
+          if (statusEl) statusEl.innerHTML = `<span class="text-emerald-400">✅ Connected to ${model}</span>`;
+          showToast(`Connected to local Ollama (${model})!`);
+        } else {
+          if (statusEl) statusEl.innerHTML = `<span class="text-amber-400">❌ ${res.error || 'Offline'}</span>`;
+        }
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">❌ ${err.message}</span>`;
+      } finally {
+        btn.innerHTML = origText;
+        btn.disabled = false;
+      }
+    }
+
+    function saveAndApplyAiConfig() {
+      const provider = document.getElementById("ai-cfg-provider").value;
+      const model = document.getElementById("ai-cfg-model").value;
+      const apiKey = document.getElementById("ai-cfg-key").value.trim();
+
+      if (!apiKey) {
+        showToast("Please enter an API key to activate cloud AI", true);
+        return;
+      }
+
+      const cfg = {
+        provider: provider,
+        model: model,
+        api_key: apiKey,
+        ollama_url: "http://localhost:11434"
+      };
+      saveAiConfig(cfg);
+      closeAiSetupModal();
+      showToast(`Activated ${provider.toUpperCase()} (${model})!`);
+    }
+
+    function activateLocalLlm() {
+      const model = document.getElementById("ai-cfg-local-model").value || "llama3.2";
+      const ollamaUrl = document.getElementById("ai-cfg-ollama-url").value || "http://localhost:11434";
+
+      const cfg = {
+        provider: "local",
+        model: model,
+        api_key: "",
+        ollama_url: ollamaUrl
+      };
+      saveAiConfig(cfg);
+      closeAiSetupModal();
+      showToast(`Activated 100% Private Local LLM (${model})!`);
+    }
+
+    function updateAiHeaderBadge() {
+      const cfg = getAiConfig();
+      const badge = document.getElementById("llama-status-badge");
+      const modelName = document.getElementById("llama-model-name");
+      const headerStatus = document.getElementById("header-llama-status");
+      const headerIcon = document.getElementById("header-ai-icon");
+      const navLabel = document.getElementById("nav-ai-engine-label");
+      const modalBadge = document.getElementById("modal-active-provider-badge");
+      const toolbarLabel = document.getElementById("toolbar-ai-label");
+      const toolbarIcon = document.getElementById("toolbar-ai-icon");
+
+      let displayName = cfg.model || "llama3.2";
+      let icon = "🦙";
+      let provLabel = "Local LLM";
+
+      if (cfg.provider === "gemini") {
+        icon = "✨";
+        provLabel = "Gemini";
+      } else if (cfg.provider === "openai") {
+        icon = "🟢";
+        provLabel = "OpenAI";
+      } else if (cfg.provider === "groq") {
+        icon = "⚡";
+        provLabel = "Groq";
+      } else if (cfg.provider === "anthropic") {
+        icon = "🟠";
+        provLabel = "Claude";
+      }
+
+      if (headerIcon) headerIcon.innerText = icon;
+      if (toolbarIcon) toolbarIcon.innerText = icon;
+      if (toolbarLabel) toolbarLabel.innerText = `${provLabel} Grounding Copilot`;
+      if (modalBadge) modalBadge.innerText = `${icon} ${provLabel} (${displayName})`;
+      if (navLabel) navLabel.innerText = `${provLabel}`;
+
+      if (cfg.provider === "local") {
+        checkLlmStatus();
+      } else {
+        if (headerStatus) {
+          headerStatus.className = "text-xs font-semibold text-indigo-400 flex items-center space-x-1";
+          headerStatus.innerHTML = `<span class="h-2 w-2 rounded-full bg-indigo-400 inline-block"></span><span>${provLabel} Active</span>`;
+        }
+        if (badge) {
+          badge.className = "px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center space-x-1";
+        }
+        if (modelName) {
+          modelName.innerText = `${displayName} (Active)`;
+        }
+      }
+    }
+
+    // Local Ollama Status Polling
     async function checkLlmStatus() {
+      const cfg = getAiConfig();
+      if (cfg.provider !== "local") return;
+
       try {
         const res = await fetch('/api/llm/status').then(r => r.json());
         const headerStatus = document.getElementById("header-llama-status");
@@ -2664,7 +3004,7 @@
           }
         }
       } catch (err) {
-        console.warn("LLaMA status check failed:", err);
+        console.warn("LLM status check failed:", err);
       }
     }
 
@@ -2684,11 +3024,18 @@
         return;
       }
 
+      const aiCfg = getAiConfig();
+      if (aiCfg.provider !== "local" && !aiCfg.api_key) {
+        showToast("Please enter your API key in AI Engine Setup first!", true);
+        openAiSetupModal();
+        return;
+      }
+
       const origBtn = btn.innerHTML;
-      btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Polish with LLaMA...`;
+      btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Polishing with AI...`;
       btn.disabled = true;
 
-      showToast("LLaMA running grounded optimization (zero hallucination mode)...");
+      showToast(`Running grounded optimization using ${aiCfg.provider.toUpperCase()} (${aiCfg.model})...`);
 
       try {
         const res = await fetch('/api/llm/improve', {
@@ -2699,7 +3046,10 @@
             doc_type: docType,
             jd_text: jdText,
             instructions: instruction,
-            model: "llama3.2"
+            provider: aiCfg.provider,
+            model: aiCfg.model,
+            api_key: aiCfg.api_key,
+            ollama_url: aiCfg.ollama_url
           })
         }).then(r => r.json());
 
@@ -2713,13 +3063,13 @@
             appState.outputs.cover_letter = res.improved_text;
           }
           saveOutputs();
-          showToast(`Successfully improved ${isResume ? 'resume' : 'cover letter'} with local LLaMA!`);
+          showToast(`Successfully improved ${isResume ? 'resume' : 'cover letter'} with ${aiCfg.provider.toUpperCase()}!`);
         } else {
-          showToast(`LLaMA improve failed: ${res.error || 'Unknown error'}`, true);
+          showToast(`AI polish failed: ${res.error || 'Unknown error'}`, true);
         }
       } catch (err) {
         console.error(err);
-        showToast(`Error connecting to LLaMA: ${err.message}`, true);
+        showToast(`Error connecting to AI: ${err.message}`, true);
       } finally {
         btn.innerHTML = origBtn;
         btn.disabled = false;
@@ -2738,6 +3088,13 @@
         return;
       }
 
+      const aiCfg = getAiConfig();
+      if (aiCfg.provider !== "local" && !aiCfg.api_key) {
+        showToast("Please enter your API key in AI Engine Setup first!", true);
+        openAiSetupModal();
+        return;
+      }
+
       const origBtn = btn.innerHTML;
       btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Generating Draft...`;
       btn.disabled = true;
@@ -2745,7 +3102,7 @@
       const comp = appState.detectedMeta?.company || "Target Company";
       const tit = appState.detectedMeta?.title || (isResume ? "Technology Leader" : "Infrastructure Manager");
 
-      showToast(`Generating tailored ${isResume ? 'resume' : 'cover letter'} strictly for ${comp} - ${tit}...`);
+      showToast(`Generating tailored ${isResume ? 'resume' : 'cover letter'} using ${aiCfg.provider.toUpperCase()} strictly for ${comp} - ${tit}...`);
 
       try {
         const res = await fetch('/api/llm/generate', {
@@ -2756,7 +3113,10 @@
             jd_text: jdText,
             company: comp,
             title: tit,
-            model: "llama3.2"
+            provider: aiCfg.provider,
+            model: aiCfg.model,
+            api_key: aiCfg.api_key,
+            ollama_url: aiCfg.ollama_url
           })
         }).then(r => r.json());
 
@@ -2777,7 +3137,7 @@
         }
       } catch (err) {
         console.error(err);
-        showToast(`Error connecting to LLaMA: ${err.message}`, true);
+        showToast(`Error connecting to AI: ${err.message}`, true);
       } finally {
         btn.innerHTML = origBtn;
         btn.disabled = false;
@@ -2796,11 +3156,18 @@
         return;
       }
 
+      const aiCfg = getAiConfig();
+      if (aiCfg.provider !== "local" && !aiCfg.api_key) {
+        showToast("Please enter your API key in AI Engine Setup first!", true);
+        openAiSetupModal();
+        return;
+      }
+
       const origBtn = btn.innerHTML;
       btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-amber-300" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Auditing...`;
       btn.disabled = true;
 
-      showToast("Forensic audit running: cross-referencing against Knowledge Base...");
+      showToast(`Forensic audit running with ${aiCfg.provider.toUpperCase()}: cross-referencing against Knowledge Base...`);
 
       try {
         const res = await fetch('/api/llm/audit', {
@@ -2809,7 +3176,10 @@
           body: JSON.stringify({
             resume_text: resumeText,
             jd_text: jdText,
-            model: "llama3.2"
+            provider: aiCfg.provider,
+            model: aiCfg.model,
+            api_key: aiCfg.api_key,
+            ollama_url: aiCfg.ollama_url
           })
         }).then(r => r.json());
 
@@ -2826,6 +3196,9 @@
         showToast(`Audit failed: ${err.message}`, true);
       } finally {
         btn.innerHTML = origBtn;
+        btn.disabled = false;
+      }
+    }
         btn.disabled = false;
       }
     }
@@ -3126,6 +3499,225 @@
       <div class="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
         <button onclick="closeTemplateModal()" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- AI Model & Engine Setup Modal -->
+  <div id="ai-setup-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4">
+    <div class="glass-panel max-w-2xl w-full p-6 rounded-2xl border border-indigo-500/40 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-scroll">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center space-x-3">
+          <div class="h-10 w-10 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 text-lg">
+            🤖
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+              <span>AI Engine & Privacy Setup</span>
+              <span id="modal-active-provider-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Local LLM</span>
+            </h3>
+            <p class="text-xs text-slate-400">Choose between 100% Private Local LLMs or Bring-Your-Own-Key Cloud GenAI</p>
+          </div>
+        </div>
+        <button onclick="closeAiSetupModal()" class="text-slate-400 hover:text-white text-base">✕</button>
+      </div>
+
+      <!-- Mode Selection Tabs -->
+      <div class="flex items-center space-x-2 border-b border-slate-800/80 pb-2">
+        <button onclick="switchAiTab('cloud')" id="ai-tab-btn-cloud" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white flex items-center space-x-1.5 transition">
+          <span>🌐</span>
+          <span>Bring Your Own Key (Cloud)</span>
+        </button>
+        <button onclick="switchAiTab('local')" id="ai-tab-btn-local" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white flex items-center space-x-1.5 transition">
+          <span>🔒</span>
+          <span>100% Private Local LLM</span>
+        </button>
+        <button onclick="switchAiTab('guide')" id="ai-tab-btn-guide" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 flex items-center space-x-1.5 transition ml-auto">
+          <span>🚀</span>
+          <span>2-Min Local Install Guide</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: Cloud BYO API Key -->
+      <div id="ai-tab-cloud" class="space-y-4">
+        <div class="p-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl text-xs text-indigo-200">
+          <span class="font-bold">✨ Works Everywhere:</span> Use your own API key to generate and polish resumes on Google Cloud Run or locally. Your key is stored <strong>only in your browser (localStorage)</strong> and never saved to any database.
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">AI Provider</label>
+            <select id="ai-cfg-provider" onchange="onAiProviderChanged()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+              <option value="gemini">Google Gemini (Recommended - Free Tier Available)</option>
+              <option value="openai">OpenAI (GPT-4o & GPT-4o-mini)</option>
+              <option value="groq">Groq Cloud (Ultra Fast LLaMA 3.3 70B)</option>
+              <option value="anthropic">Anthropic Claude (Claude 3.5 Sonnet)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Model Selection</label>
+            <select id="ai-cfg-model" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+
+        <div class="text-xs">
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400">API Key</label>
+            <a id="ai-get-key-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-[11px] text-indigo-400 hover:text-indigo-300 underline flex items-center space-x-1">
+              <span>Get a free Gemini API Key</span>
+              <span>↗</span>
+            </a>
+          </div>
+          <div class="relative">
+            <input type="password" id="ai-cfg-key" placeholder="Paste your API key here (e.g. AIzaSy... or sk-...)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 pr-16 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+            <button type="button" onclick="toggleKeyVisibility()" class="absolute right-2 top-2 text-[10px] text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded bg-slate-800">Show</button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <button onclick="testAiConnection()" id="btn-test-ai-conn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition">
+            <span>⚡ Test Connection</span>
+          </button>
+          <div class="flex items-center space-x-2">
+            <span id="ai-conn-status" class="text-xs font-mono"></span>
+            <button onclick="saveAndApplyAiConfig()" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition active:scale-95">
+              Save & Activate
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: 100% Private Local LLM -->
+      <div id="ai-tab-local" class="hidden space-y-4">
+        <!-- Important callout about local requirement -->
+        <div class="p-3.5 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs text-amber-200 space-y-1">
+          <div class="font-bold flex items-center space-x-1.5 text-amber-300">
+            <span>⚠️ Why Local Installation is Required for Local LLMs:</span>
+          </div>
+          <p class="text-slate-300 leading-relaxed">
+            A cloud-hosted website (like Cloud Run) <strong>cannot connect</strong> to your personal computer's <code class="text-amber-300">http://localhost:11434</code> due to browser security boundaries.
+          </p>
+          <p class="text-slate-300 leading-relaxed">
+            To use Ollama or LM Studio, you must run this app on your computer at <code class="text-amber-300">http://localhost:5050</code>. See the <button onclick="switchAiTab('guide')" class="text-indigo-400 hover:underline font-bold">2-Minute Install Guide</button> to launch it with 1 click!
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Ollama Base URL</label>
+            <input type="text" id="ai-cfg-ollama-url" value="http://localhost:11434" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 font-mono text-xs focus:outline-none focus:border-indigo-500">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Local Model</label>
+            <select id="ai-cfg-local-model" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:border-indigo-500">
+              <option value="llama3.2">llama3.2 (Default)</option>
+              <option value="mistral">mistral</option>
+              <option value="deepseek-r1">deepseek-r1</option>
+              <option value="qwen2.5">qwen2.5</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between">
+          <div class="flex items-center space-x-2 text-xs">
+            <span class="text-base">🦙</span>
+            <div>
+              <div class="font-bold text-white">Local Ollama Status</div>
+              <div id="modal-ollama-diag" class="text-slate-400 text-[11px]">Checking connection to http://localhost:11434...</div>
+            </div>
+          </div>
+          <button onclick="checkLocalOllamaStatus()" class="px-2.5 py-1 text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700">
+            Refresh
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <button onclick="testLocalOllamaConnection()" id="btn-test-ollama-conn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition">
+            <span>⚡ Test Local LLM</span>
+          </button>
+          <div class="flex items-center space-x-2">
+            <span id="ai-local-conn-status" class="text-xs font-mono"></span>
+            <button onclick="activateLocalLlm()" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/20 transition active:scale-95">
+              Activate Local LLM
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Easy 2-Minute Local Installation Guide (Beginner Friendly) -->
+      <div id="ai-tab-guide" class="hidden space-y-4 text-xs">
+        <div class="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl text-emerald-200 leading-relaxed">
+          <span class="font-bold text-white">🚀 Zero-Technical Skills 2-Minute Setup:</span> Follow these 3 simple steps to run Resume Lab AI Studio 100% privately on your computer. All career data, documents, and LLM inference remain on your local machine.
+        </div>
+
+        <div class="space-y-3">
+          <!-- Step 1 Card -->
+          <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl flex items-start space-x-3">
+            <div class="h-7 w-7 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-xs">1</div>
+            <div class="space-y-1.5 flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white text-xs">Download & Install Ollama (Free Local AI)</span>
+                <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" class="text-[11px] text-indigo-400 hover:underline">ollama.com/download ↗</a>
+              </div>
+              <p class="text-slate-400 text-[11px]">Install Ollama for Windows, Mac, or Linux, then open your terminal or command prompt and run:</p>
+              <div class="flex items-center justify-between bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg font-mono text-[11px] text-emerald-400">
+                <code>ollama run llama3.2</code>
+                <button onclick="copyToClipboardText('ollama run llama3.2')" class="text-slate-400 hover:text-white text-[10px] ml-2">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2 Card -->
+          <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl flex items-start space-x-3">
+            <div class="h-7 w-7 rounded-lg bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-xs">2</div>
+            <div class="space-y-1.5 flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white text-xs">Download Resume Lab AI Studio</span>
+                <a href="https://github.com/rajivrparikh-cissp/ResumeLabAIStudio/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer" class="text-[11px] text-emerald-400 hover:underline font-semibold">Download ZIP ⬇</a>
+              </div>
+              <p class="text-slate-400 text-[11px]">Download and extract the ZIP file, or clone via Git:</p>
+              <div class="flex items-center justify-between bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg font-mono text-[11px] text-emerald-400">
+                <code>git clone https://github.com/rajivrparikh-cissp/ResumeLabAIStudio.git</code>
+                <button onclick="copyToClipboardText('git clone https://github.com/rajivrparikh-cissp/ResumeLabAIStudio.git')" class="text-slate-400 hover:text-white text-[10px] ml-2">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3 Card -->
+          <div class="p-3.5 bg-slate-900 border border-emerald-500/30 rounded-xl flex items-start space-x-3 bg-gradient-to-r from-slate-900 to-emerald-950/20">
+            <div class="h-7 w-7 rounded-lg bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-xs">3</div>
+            <div class="space-y-1.5 flex-1 min-w-0">
+              <span class="font-bold text-white text-xs">Double-Click the 1-Click Launch File!</span>
+              <p class="text-slate-400 text-[11px]">
+                Inside the extracted folder, simply double-click:
+              </p>
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="p-2 bg-slate-950 border border-slate-800 rounded-lg">
+                  <span class="font-bold text-indigo-300 block">🪟 Windows:</span>
+                  <code class="text-slate-200">start_studio.bat</code>
+                </div>
+                <div class="p-2 bg-slate-950 border border-slate-800 rounded-lg">
+                  <span class="font-bold text-indigo-300 block">🍎 Mac / Linux:</span>
+                  <code class="text-slate-200">./start_studio.sh</code>
+                </div>
+              </div>
+              <p class="text-[11px] text-emerald-300">
+                ✨ It automatically sets up Python, installs dependencies, and opens <span class="font-mono underline">http://localhost:5050</span> in your browser!
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end pt-2 border-t border-slate-800">
+          <button onclick="closeAiSetupModal()" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Close</button>
+        </div>
+      </div>
+
     </div>
   </div>
 

@@ -14,7 +14,8 @@ from intelligence_engine import load_kb_data, analyze_jd_alignment, extract_jd_m
 from application_manager import list_applications, save_application, load_application_files, detect_company_and_title, MY_APPS_DIR, get_active_target, set_active_target
 from llm_copilot import (
     get_ollama_status, grounded_improve_text, audit_hallucinations_with_llama, 
-    generate_grounded_document, build_instant_tailored_resume, build_instant_tailored_cover_letter
+    generate_grounded_document, build_instant_tailored_resume, build_instant_tailored_cover_letter,
+    test_llm_connection, query_llm
 )
 from profile_manager import get_candidate_profile, save_candidate_profile, apply_profile_to_active_docs
 from template_manager import list_templates, get_active_template, set_active_template, inspect_template_details, save_uploaded_template
@@ -127,6 +128,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.handle_llm_audit()
         elif path == "/api/llm/generate":
             self.handle_llm_generate()
+        elif path == "/api/llm/test-connection":
+            self.handle_llm_test_connection()
         elif path == "/api/profile":
             self.handle_save_profile()
         elif path == "/api/profile/apply":
@@ -564,8 +567,66 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.send_json({"error": "File not found"}, 404)
 
     def handle_llm_status(self):
-        status = get_ollama_status()
-        self.send_json(status)
+        ollama_status = get_ollama_status()
+        self.send_json({
+            **ollama_status,
+            "supported_providers": [
+                {
+                    "id": "local",
+                    "name": "Local LLM (Ollama / LM Studio)",
+                    "requires_local_app": True,
+                    "description": "100% Private, Free, Runs on your machine. (Requires running app on localhost)",
+                    "default_model": ollama_status.get("default_model", "llama3.2"),
+                    "models": ollama_status.get("models", ["llama3.2", "mistral", "deepseek-r1"])
+                },
+                {
+                    "id": "gemini",
+                    "name": "Google Gemini API (BYOK)",
+                    "requires_local_app": False,
+                    "description": "High intelligence, fast, generous free tier at Google AI Studio. Works in Cloud or Local.",
+                    "default_model": "gemini-1.5-flash",
+                    "models": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"],
+                    "has_env_key": bool(os.environ.get("GEMINI_API_KEY"))
+                },
+                {
+                    "id": "openai",
+                    "name": "OpenAI API (BYOK)",
+                    "requires_local_app": False,
+                    "description": "Industry standard GPT-4o & GPT-4o-mini models. Works in Cloud or Local.",
+                    "default_model": "gpt-4o-mini",
+                    "models": ["gpt-4o-mini", "gpt-4o"],
+                    "has_env_key": bool(os.environ.get("OPENAI_API_KEY"))
+                },
+                {
+                    "id": "groq",
+                    "name": "Groq Cloud API (BYOK - Ultra Fast)",
+                    "requires_local_app": False,
+                    "description": "Instant generation with open-source models (LLaMA 3.3 70B). Free tier available.",
+                    "default_model": "llama-3.3-70b-versatile",
+                    "models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768"],
+                    "has_env_key": bool(os.environ.get("GROQ_API_KEY"))
+                },
+                {
+                    "id": "anthropic",
+                    "name": "Anthropic Claude API (BYOK)",
+                    "requires_local_app": False,
+                    "description": "Exceptional nuance and executive prose style (Claude 3.5 Sonnet).",
+                    "default_model": "claude-3-5-sonnet-20241022",
+                    "models": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
+                    "has_env_key": bool(os.environ.get("ANTHROPIC_API_KEY"))
+                }
+            ]
+        })
+
+    def handle_llm_test_connection(self):
+        data = self.read_post_json()
+        provider = data.get("provider", "local")
+        model = data.get("model", "")
+        api_key = data.get("api_key", "")
+        ollama_url = data.get("ollama_url", None)
+        result = test_llm_connection(provider=provider, model=model, api_key=api_key, ollama_url=ollama_url)
+        status_code = 200 if result.get("success") else 400
+        self.send_json(result, status_code)
 
     def handle_llm_improve(self):
         data = self.read_post_json()
@@ -574,10 +635,13 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         jd_text = data.get("jd_text", "")
         instructions = data.get("instructions", "")
         model = data.get("model", "llama3.2")
+        provider = data.get("provider", "local")
+        api_key = data.get("api_key", "")
+        ollama_url = data.get("ollama_url", None)
         if not text:
             self.send_json({"error": "No text provided to improve"}, 400)
             return
-        result = grounded_improve_text(text, doc_type, jd_text, instructions, model)
+        result = grounded_improve_text(text, doc_type, jd_text, instructions, model=model, provider=provider, api_key=api_key, ollama_url=ollama_url)
         self.send_json(result)
 
     def handle_llm_audit(self):
@@ -585,6 +649,9 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         resume_text = data.get("resume_text", "")
         jd_text = data.get("jd_text", "")
         model = data.get("model", "llama3.2")
+        provider = data.get("provider", "local")
+        api_key = data.get("api_key", "")
+        ollama_url = data.get("ollama_url", None)
         if not resume_text:
             r_path = os.path.join(BASE_DIR, "output", "tailored_resume.md")
             if os.path.exists(r_path):
@@ -593,7 +660,7 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             else:
                 self.send_json({"error": "No resume text provided or found in output"}, 400)
                 return
-        result = audit_hallucinations_with_llama(resume_text, jd_text, model)
+        result = audit_hallucinations_with_llama(resume_text, jd_text, model=model, provider=provider, api_key=api_key, ollama_url=ollama_url)
         self.send_json(result)
 
     def handle_llm_generate(self):
@@ -601,6 +668,9 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         doc_type = data.get("doc_type", "resume")
         jd_text = data.get("jd_text", "")
         model = data.get("model", "llama3.2")
+        provider = data.get("provider", "local")
+        api_key = data.get("api_key", "")
+        ollama_url = data.get("ollama_url", None)
         company = data.get("company", "")
         title = data.get("title", "")
         instant = data.get("instant", False)
@@ -621,7 +691,7 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             from llm_copilot import build_instant_tailored_cover_letter
             result = {"success": True, "generated_text": build_instant_tailored_cover_letter(company, title, jd_text)}
         else:
-            result = generate_grounded_document(doc_type=doc_type, jd_text=jd_text, model=model, target_company=company, target_title=title)
+            result = generate_grounded_document(doc_type=doc_type, jd_text=jd_text, model=model, target_company=company, target_title=title, provider=provider, api_key=api_key, ollama_url=ollama_url)
         self.send_json(result)
 
     def handle_get_profile(self):
