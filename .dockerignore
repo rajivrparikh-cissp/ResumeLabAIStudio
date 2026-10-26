@@ -1,0 +1,26 @@
+# ==============================================================================
+# RESUME LAB AI STUDIO - ZERO-CLOUD PII DOCKER IGNORE
+# ==============================================================================
+# Guarantees that no user resumes, cover letters, knowledge bases, or PII
+# are ever copied into container images deployed to Google Cloud Run.
+# ==============================================================================
+
+# Personal Candidate Data & Career Files (Local Only)
+knowledge_base/
+my_applications/
+output/
+target_jd.md
+template/*.docx
+Resume & Job Applications/
+Resumes/
+
+# Python Virtual Environments & Cache
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Local Git & Logs
+.git/
+.system_generated/
+*.log

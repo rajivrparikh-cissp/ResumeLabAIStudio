@@ -8,18 +8,18 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PROFILE_PATH = os.path.join(BASE_DIR, "knowledge_base", "candidate_profile.json")
 
 DEFAULT_PROFILE = {
-    "full_name": "Rajiv (Raj) Parikh",
-    "preferred_name": "Raj Parikh",
-    "address": "Carlingford, NSW 2118",
-    "phone": "0433 463 121",
-    "email": "raj.parikh@hotmail.com",
-    "citizenship": "Australian Citizen",
-    "linkedin": "https://www.linkedin.com/in/rajivparikh",
-    "portfolio_url": "https://itsmtracker.crashcoursetech.com",
-    "total_years_experience": "25+",
-    "target_title": "Head of Infrastructure & Security / Technology Leader",
-    "core_credentials": "CISSP | CISM | A|CISO | ITIL | PRINCE2 | CCNP",
-    "executive_summary_baseline": "Strategic and hands-on Technology Leader with over 25 years of experience directing infrastructure engineering, cloud operations, and cybersecurity governance within high-growth financial services (Commonwealth Bank of Australia) and enterprise environments. Proven track record of partnering with CTOs and executive stakeholders to define technology roadmaps, manage capital budgets, and scale cloud environments (AWS/Azure) utilizing Infrastructure as Code (Terraform) and DevOps best practices. Fully certified security executive (CISSP, CISM) with expertise maturing cybersecurity postures, securing payment-adjacent systems, and building high-performing technical teams."
+    "full_name": "Senior Technology Leader",
+    "preferred_name": "Candidate",
+    "address": "Sydney, NSW, Australia",
+    "phone": "+61 400 000 000",
+    "email": "candidate@example.com",
+    "citizenship": "Australian Citizen / Permanent Resident",
+    "linkedin": "https://www.linkedin.com/in/candidate",
+    "portfolio_url": "https://github.com/candidate",
+    "total_years_experience": "20+",
+    "target_title": "Head of Technology & Cybersecurity / Infrastructure Director",
+    "core_credentials": "CISSP | CISM | Cloud Architecture | DevOps | Executive Leadership",
+    "executive_summary_baseline": "Strategic and hands-on Technology Leader with extensive experience directing infrastructure engineering, cloud operations, and cybersecurity governance within enterprise and regulated environments. Proven track record partnering with C-level executives to establish technology roadmaps, govern digital resilience, and scale secure, resilient enterprise systems."
 }
 
 def get_candidate_profile():

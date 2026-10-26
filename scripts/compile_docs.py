@@ -115,12 +115,15 @@ def compile_resume(md_path, template_path, output_path):
         master_docx = resolve_template_path(None, "Resume of Raj Parikh.docx")
         if os.path.exists(master_docx):
             actual_docx_template = master_docx
+        else:
+            actual_docx_template = None
             
-    if not os.path.exists(actual_docx_template):
-        print(f"Template file not found: {actual_docx_template}")
-        return {"success": False, "error": f"Template file not found: {actual_docx_template}"}
+    if actual_docx_template and os.path.exists(actual_docx_template):
+        doc = docx.Document(actual_docx_template)
+    else:
+        # Create a fresh document with standard clean typography
+        doc = docx.Document()
         
-    doc = docx.Document(actual_docx_template)
     profile = load_candidate_profile()
     active_target = load_active_target()
     
@@ -133,13 +136,20 @@ def compile_resume(md_path, template_path, output_path):
     
     # Check if md has explicit header block (starts with # Name)
     has_explicit_header = False
+    name_hints = []
+    if profile and profile.get("full_name"):
+        name_hints.extend([p.lower() for p in profile.get("full_name", "").split() if len(p) > 2])
+    name_hints.extend(["rajiv", "parikh", "raj", "candidate", "resume", "curriculum vitae"])
+    
     for line in md_lines:
         line_strip = line.strip()
         if not line_strip:
             continue
-        if line_strip.startswith("# ") and any(x in line_strip for x in ["Rajiv", "Parikh", "Raj"]):
-            has_explicit_header = True
-            break
+        if line_strip.startswith("# "):
+            lower_line = line_strip.lower()
+            if any(x in lower_line for x in name_hints):
+                has_explicit_header = True
+                break
             
     if has_explicit_header:
         for line in md_lines:
@@ -273,25 +283,22 @@ def compile_cover_letter(md_path, template_path, output_path):
     if not os.path.exists(md_path):
         print(f"MD file not found: {md_path}")
         return {"success": False, "error": f"MD file not found: {md_path}"}
-    if not os.path.exists(template_path):
-        print(f"Template file not found: {template_path}")
-        return {"success": False, "error": f"Template file not found: {template_path}"}
+    if os.path.exists(template_path):
+        doc = docx.Document(template_path)
+        # Clear all paragraphs in the template
+        while len(doc.paragraphs) > 0:
+            p = doc.paragraphs[0]
+            p._element.getparent().remove(p._element)
+            
+        # Clear tables
+        for t in list(doc.tables):
+            t._element.getparent().remove(t._element)
+    else:
+        doc = docx.Document()
         
-    doc = docx.Document(template_path)
     profile = load_candidate_profile()
-    
-    # Read Markdown lines
     with open(md_path, 'r', encoding='utf-8') as f:
         md_lines = f.readlines()
-        
-    # Clear all paragraphs in the template
-    while len(doc.paragraphs) > 0:
-        p = doc.paragraphs[0]
-        p._element.getparent().remove(p._element)
-        
-    # Clear tables
-    for t in list(doc.tables):
-        t._element.getparent().remove(t._element)
         
     years_str = profile.get("total_years_experience", "25+") if profile else "25+"
 

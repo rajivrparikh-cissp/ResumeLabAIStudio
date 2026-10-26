@@ -4,6 +4,10 @@ import json
 
 def load_kb_data(base_dir):
     kb_dir = os.path.join(base_dir, "knowledge_base")
+    if not os.path.exists(kb_dir):
+        example_dir = os.path.join(base_dir, "knowledge_base.example")
+        if os.path.exists(example_dir):
+            kb_dir = example_dir
     kb_files = {}
     if os.path.exists(kb_dir):
         for f in os.listdir(kb_dir):
@@ -22,7 +26,7 @@ def extract_jd_metadata(jd_text):
         det = detect_company_and_title(jd_text)
         return {"title": det["title"], "company": det["company"]}
     except Exception:
-        return {"title": "IT Manager - Network & Security", "company": "Kia Motors"}
+        return {"title": "Technology & Security Leader", "company": "Target Enterprise"}
 
 # Master keyword dictionary categorized
 KEYWORD_TAXONOMY = {

@@ -1,0 +1,55 @@
+# ==============================================================================
+# RESUME LAB AI STUDIO - ZERO-CLOUD PII .gcloudignore
+# ==============================================================================
+# Guarantees that NO user resumes, cover letters, knowledge bases, personal PII,
+# or application archives are EVER uploaded to Google Cloud during deployment.
+# ==============================================================================
+
+.gcloudignore
+.git
+.gitignore
+
+# 1. Candidate Career Grounding & Knowledge Base (STRICTLY LOCAL ONLY)
+knowledge_base/
+!knowledge_base.example/
+
+# 2. Completed Application Bundles & Archival Library (STRICTLY LOCAL ONLY)
+my_applications/
+
+# 3. Active Tailored Documents & Target State (STRICTLY LOCAL ONLY)
+output/
+target_jd.md
+ai_strategy_and_delivery.md
+cover_letter_template.md
+resume_template.md
+
+# 4. Personal Template Word Files containing PII (STRICTLY LOCAL ONLY)
+template/*.docx
+!template/README.md
+!template/Standard Executive Resume Template.md
+
+# 5. Legacy Archives & Personal Material
+Resume & Job Applications/
+Resumes/
+*.docx
+*.pdf
+
+# 6. Python Virtual Environment, Cache & Bytecode
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 7. System Generated Logs & Crash Reports
+.system_generated/
+*.log
+
+# 8. OS & Editor Artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

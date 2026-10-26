@@ -23,6 +23,11 @@ def get_active_template():
                     return os.path.basename(tmpl)
         except Exception:
             pass
+    if os.path.exists(os.path.join(TEMPLATE_DIR, DEFAULT_TEMPLATE)):
+        return DEFAULT_TEMPLATE
+    for cand in ["Standard Executive Resume Template.md", "Standard Executive Resume Template.docx"]:
+        if os.path.exists(os.path.join(TEMPLATE_DIR, cand)):
+            return cand
     return DEFAULT_TEMPLATE
 
 def set_active_template(template_name):

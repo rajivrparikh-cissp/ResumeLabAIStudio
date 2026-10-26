@@ -19,7 +19,7 @@ from llm_copilot import (
 from profile_manager import get_candidate_profile, save_candidate_profile, apply_profile_to_active_docs
 from template_manager import list_templates, get_active_template, set_active_template, inspect_template_details, save_uploaded_template
 
-PORT = 5050
+PORT = int(os.environ.get("PORT", 5050))
 
 class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
     def end_headers(self):
@@ -728,9 +728,10 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e)}, 500)
 
 def run_server():
+    socketserver.TCPServer.allow_reuse_address = True
     server_address = ('', PORT)
     httpd = socketserver.TCPServer(server_address, ResumeLabHandler)
-    print(f"Resume Lab Intelligent Studio running at http://localhost:{PORT}")
+    print(f"Resume Lab Intelligent Studio running on port {PORT}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
