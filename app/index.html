@@ -1706,6 +1706,11 @@
 
     async function autoTailorResume() {
       if (checkDemoAction("Auto-Tailor Resume")) return;
+      const activeTmpl = document.getElementById("resume-template-select")?.value || "";
+      if (activeTmpl && !activeTmpl.startsWith("Resume of Raj Parikh.docx")) {
+        const proceed = confirm(`⚠️ Notice: "Instant Auto-Tailor" generates the baseline full resume from your Knowledge Base.\n\nClick OK to generate. (If you want your "${activeTmpl}" layout, you can click "📄 Load into Markdown" afterwards or use "Run LLaMA Polish" on selected bullets).`);
+        if (!proceed) return;
+      }
       const comp = appState.detectedMeta?.company || "Target Company";
       const tit = appState.detectedMeta?.title || "Technology Leader";
       const jdText = document.getElementById("jd-editor")?.value || "";
@@ -3156,12 +3161,17 @@
       const btnId = isResume ? "btn-llama-improve-resume" : "btn-llama-improve-cl";
       const modeId = isResume ? "llama-improve-mode" : "llama-improve-mode-cl";
 
-      const text = document.getElementById(editorId).value;
+      const editor = document.getElementById(editorId);
+      const selStart = editor.selectionStart;
+      const selEnd = editor.selectionEnd;
+      const hasSelection = (selEnd > selStart && editor.value.substring(selStart, selEnd).trim().length > 0);
+      const textToImprove = hasSelection ? editor.value.substring(selStart, selEnd) : editor.value;
+
       const jdText = document.getElementById("jd-editor").value;
       const instruction = document.getElementById(modeId).value;
       const btn = document.getElementById(btnId);
 
-      if (!text.trim()) {
+      if (!textToImprove.trim()) {
         showToast("No content to improve!", true);
         return;
       }
@@ -3177,14 +3187,14 @@
       btn.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> Polishing with AI...`;
       btn.disabled = true;
 
-      showToast(`Running grounded optimization using ${aiCfg.provider.toUpperCase()} (${aiCfg.model})...`);
+      showToast(`Running grounded optimization using ${aiCfg.provider.toUpperCase()} (${aiCfg.model})${hasSelection ? ' on selected text' : ''}...`);
 
       try {
         const res = await fetch('/api/llm/improve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: text,
+            text: textToImprove,
             doc_type: docType,
             jd_text: jdText,
             instructions: instruction,
@@ -3196,16 +3206,22 @@
         }).then(r => r.json());
 
         if (res.success && res.improved_text) {
-          document.getElementById(editorId).value = res.improved_text;
+          let updatedFullText = "";
+          if (hasSelection) {
+            updatedFullText = editor.value.substring(0, selStart) + res.improved_text + editor.value.substring(selEnd);
+          } else {
+            updatedFullText = res.improved_text;
+          }
+          editor.value = updatedFullText;
           if (isResume) {
             renderResumePreview();
-            appState.outputs.resume = res.improved_text;
+            appState.outputs.resume = updatedFullText;
           } else {
             renderCLPreview();
-            appState.outputs.cover_letter = res.improved_text;
+            appState.outputs.cover_letter = updatedFullText;
           }
           saveOutputs();
-          showToast(`Successfully improved ${isResume ? 'resume' : 'cover letter'} with ${aiCfg.provider.toUpperCase()}!`);
+          showToast(`Successfully improved ${hasSelection ? 'selected text' : (isResume ? 'resume' : 'cover letter')} with ${aiCfg.provider.toUpperCase()}!`);
         } else {
           showToast(`AI polish failed: ${res.error || 'Unknown error'}`, true);
         }

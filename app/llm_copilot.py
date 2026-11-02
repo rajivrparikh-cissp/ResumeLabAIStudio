@@ -315,7 +315,8 @@ def grounded_improve_text(selected_text, doc_type="resume", jd_text="", instruct
         "2. DO NOT make up metrics (percentages, dollar amounts, headcounts) out of thin air. If a metric is not in the knowledge base, polish the qualitative outcome using strong action verbs instead of fabricating numbers.\n"
         "3. Only use technologies, platforms, and methodologies that the candidate has verified experience with.\n"
         "4. Align tone, vocabulary, and keywords directly with the Target Job Description without exaggerating the candidate's actual responsibilities.\n"
-        "5. Output ONLY the improved text. Do not provide conversational filler, conversational intros, or explanations."
+        "5. CRITICAL: PRESERVE EXACT FORMATTING & STRUCTURE. Do NOT delete or alter markdown headings (#, ##, ###), section titles, bullet symbols (*), or the structural order. Polish ONLY the wording within the bullets or paragraphs.\n"
+        "6. Output ONLY the improved text. Do not provide conversational filler, conversational intros, or explanations."
     )
 
     jd_snippet = jd_text[:1200] if jd_text else "Target role alignment"
@@ -743,6 +744,20 @@ Rajiv (Raj) Parikh
         }
 
     # For resume:
+    try:
+        from template_manager import get_active_template, extract_markdown_from_template
+        active_tmpl = get_active_template()
+        if active_tmpl:
+            tmpl_md = extract_markdown_from_template(active_tmpl)
+            if tmpl_md and len(tmpl_md) > 200:
+                rules = (fmt_rules[:600] if fmt_rules else "") + f"\nSTRICT: Follow the active template structure: '{active_tmpl}'. Preserve all section headings, sub-headings, and ordering."
+                return {
+                    "exemplar_sample": tmpl_md[:2500],
+                    "formatting_rules": rules
+                }
+    except Exception:
+        pass
+
     my_app_dir = get_apps_dir()
     sample_apps = [
         "Kia Motors - IT Manager - Network & Security",
