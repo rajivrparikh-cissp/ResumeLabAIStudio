@@ -192,3 +192,87 @@ def save_uploaded_template(filename, data_bytes=None, text_content=None):
         "path": target_path,
         "size_kb": round(os.path.getsize(target_path) / 1024, 1)
     }
+
+def extract_markdown_from_template(template_name):
+    tmpl_dir = get_tmpl_dir()
+    clean_name = sanitize_template_filename(template_name)
+    target_path = os.path.join(tmpl_dir, clean_name)
+    if not os.path.exists(target_path):
+        raise FileNotFoundError(f"Template '{clean_name}' not found.")
+        
+    ext = clean_name.split(".")[-1].lower()
+    if ext in ["md", "txt"]:
+        with open(target_path, "r", encoding="utf-8") as f:
+            return f.read()
+            
+    if ext == "docx":
+        doc = docx.Document(target_path)
+        md_lines = []
+        known_section_headers = {
+            'summary', 'executive summary', 'skills', 'core competencies', 
+            'core competencies & technical skills', 'employment history', 
+            'professional experience', 'prior roles', 'qualifications', 
+            'certifications', 'professional certifications & credentials', 
+            'expired certifications', 'education'
+        }
+        
+        for i, p in enumerate(doc.paragraphs):
+            text = p.text.strip()
+            if not text:
+                continue
+            style = p.style.name.lower() if p.style else ""
+            
+            runs_text = []
+            for r in p.runs:
+                t = r.text
+                if not t:
+                    continue
+                if r.bold and r.italic and t.strip():
+                    runs_text.append(f'***{t.strip()}*** ')
+                elif r.bold and t.strip():
+                    runs_text.append(f'**{t.strip()}** ')
+                elif r.italic and t.strip():
+                    runs_text.append(f'*{t.strip()}* ')
+                else:
+                    runs_text.append(t)
+            formatted = re.sub(r'\s+', ' ', ''.join(runs_text)).strip()
+            
+            is_bullet = False
+            try:
+                if style.startswith('list') or (p._p.pPr is not None and p._p.pPr.numPr is not None):
+                    is_bullet = True
+            except Exception:
+                pass
+                
+            clean_lower = text.lower().strip()
+            
+            if i == 0 and not is_bullet:
+                md_lines.append(f'# {text}\n')
+            elif clean_lower in known_section_headers or style.startswith('heading 1'):
+                header_title = text.title() if text.isupper() else text
+                md_lines.append(f'\n## {header_title}\n')
+            elif style.startswith('heading 2'):
+                md_lines.append(f'\n### {formatted}\n')
+            elif is_bullet:
+                md_lines.append(f'* {formatted}')
+            else:
+                md_lines.append(formatted)
+                
+        return '\n'.join(md_lines)
+    
+    raise ValueError(f"Unsupported template format: {ext}")
+
+def apply_template_to_markdown(template_name):
+    md_content = extract_markdown_from_template(template_name)
+    output_dir = get_output_dir()
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, "tailored_resume.md")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(md_content)
+    return {
+        "success": True,
+        "template": template_name,
+        "markdown": md_content,
+        "length": len(md_content)
+    }
+

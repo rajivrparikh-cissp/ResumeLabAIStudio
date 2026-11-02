@@ -641,6 +641,12 @@
             <span class="hidden sm:inline">Inspect</span>
           </button>
 
+          <!-- Load into Markdown Editor Button -->
+          <button onclick="loadTemplateToMarkdown()" class="flex items-center space-x-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-500/40 transition active:scale-95 shadow-sm" title="Extract and load this template's headings & structure directly into the Markdown Editor">
+            <span>📄</span>
+            <span>Load into Markdown</span>
+          </button>
+
           <!-- Sync & Format Action Button -->
           <button onclick="syncResumeToTemplate('step2')" id="btn-sync-resume-template" class="flex items-center space-x-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg shadow-md shadow-indigo-600/30 transition active:scale-95">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
@@ -2173,6 +2179,9 @@
               showToast(`🎉 Template '${file.name}' uploaded and activated!`);
               await loadTemplates();
               fileInput.value = "";
+              if (confirm(`Template '${file.name}' is now active! Would you like to load its structure and headings directly into the Markdown Editor now?`)) {
+                await loadTemplateToMarkdown(file.name);
+              }
             } else {
               showToast(`Upload failed: ${res.error || 'Unknown error'}`, true);
             }
@@ -2194,6 +2203,9 @@
               showToast(`🎉 Template '${file.name}' uploaded and activated!`);
               await loadTemplates();
               fileInput.value = "";
+              if (confirm(`Template '${file.name}' is now active! Would you like to load its structure and headings directly into the Markdown Editor now?`)) {
+                await loadTemplateToMarkdown(file.name);
+              }
             } else {
               showToast(`Upload failed: ${res.error || 'Unknown error'}`, true);
             }
@@ -2201,6 +2213,36 @@
             showToast("Upload request failed", true);
           }
         };
+      }
+    }
+
+    async function loadTemplateToMarkdown(tmplName) {
+      if (checkDemoAction("Loading Template to Markdown")) return;
+      const template = tmplName || appState.activeTemplate || document.getElementById("resume-template-select")?.value;
+      if (!template) {
+        showToast("No template selected", true);
+        return;
+      }
+
+      showToast(`Extracting markdown structure from '${template}'...`);
+      try {
+        const res = await fetch('/api/templates/load-to-markdown', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template: template })
+        }).then(r => r.json());
+
+        if (res.success && res.markdown) {
+          const editor = document.getElementById("resume-editor");
+          if (editor) editor.value = res.markdown;
+          appState.outputs.resume = res.markdown;
+          renderResumePreview();
+          showToast(`✅ Successfully loaded '${template}' into Markdown editor!`);
+        } else {
+          showToast(`Failed to extract markdown: ${res.error || 'Unknown error'}`, true);
+        }
+      } catch (err) {
+        showToast(`Extraction error: ${err.message}`, true);
       }
     }
 
@@ -3786,7 +3828,11 @@
         </div>
       </div>
 
-      <div class="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
+      <div class="flex items-center justify-between space-x-2.5 pt-2 border-t border-slate-800">
+        <button onclick="loadTemplateToMarkdown(document.getElementById('modal-tmpl-name').innerText); closeTemplateModal();" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center space-x-1.5 active:scale-95">
+          <span>📄</span>
+          <span>Load this Template into Markdown Editor</span>
+        </button>
         <button onclick="closeTemplateModal()" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Close</button>
       </div>
     </div>

@@ -23,7 +23,11 @@ from llm_copilot import (
     test_llm_connection, query_llm
 )
 from profile_manager import get_candidate_profile, save_candidate_profile, apply_profile_to_active_docs
-from template_manager import list_templates, get_active_template, set_active_template, inspect_template_details, save_uploaded_template
+from template_manager import (
+    list_templates, get_active_template, set_active_template, 
+    inspect_template_details, save_uploaded_template,
+    extract_markdown_from_template, apply_template_to_markdown
+)
 
 PORT = int(os.environ.get("PORT", 5050))
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() in ("true", "1", "yes")
@@ -160,6 +164,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.handle_select_template()
         elif path == "/api/templates/upload":
             self.handle_upload_template()
+        elif path == "/api/templates/load-to-markdown":
+            self.handle_load_template_to_markdown()
         elif path == "/api/format-resume-template":
             self.handle_format_resume_template()
         elif path == "/api/storage-paths":
@@ -789,6 +795,18 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json({"success": False, "error": str(e)}, 500)
 
+    def handle_load_template_to_markdown(self):
+        try:
+            data = self.read_post_json()
+            template_name = data.get("template") or get_active_template()
+            if not template_name:
+                self.send_json({"error": "No template specified"}, 400)
+                return
+            res = apply_template_to_markdown(template_name)
+            self.send_json(res)
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)}, 500)
+
     def handle_format_resume_template(self):
         try:
             data = self.read_post_json()
@@ -852,9 +870,9 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e)}, 500)
 
 def run_server():
-    socketserver.TCPServer.allow_reuse_address = True
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
     server_address = ('', PORT)
-    httpd = socketserver.TCPServer(server_address, ResumeLabHandler)
+    httpd = socketserver.ThreadingTCPServer(server_address, ResumeLabHandler)
     print(f"Resume Lab Intelligent Studio running on port {PORT}")
     try:
         httpd.serve_forever()
