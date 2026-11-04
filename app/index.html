@@ -672,15 +672,6 @@
           </button>
         </div>
       </div>
-        <div class="flex items-center space-x-2">
-          <span>✅</span>
-          <span id="template-sync-msg">Resume formatted to template successfully.</span>
-        </div>
-        <a href="/api/download/tailored_resume.docx" download class="font-bold underline hover:text-white flex items-center space-x-1 text-emerald-300">
-          <span>Download Formatted .docx</span>
-          <span>⬇️</span>
-        </a>
-      </div>
 
       <!-- Real-time Resume Mismatch Alert Banner -->
       <div id="resume-mismatch-banner" class="hidden p-3.5 bg-amber-500/10 border border-amber-500/40 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
@@ -1721,7 +1712,8 @@
 
     async function autoTailorResume() {
       if (checkDemoAction("Auto-Tailor Resume")) return;
-      const activeTmpl = document.getElementById("resume-template-select")?.value || "";
+      const activeTmpl = document.getElementById("resume-template-select")?.value || appState.activeTemplate || "";
+      const currentMd = document.getElementById("resume-editor")?.value || "";
       const comp = appState.detectedMeta?.company || "Target Company";
       const tit = appState.detectedMeta?.title || "Technology Leader";
       const jdText = document.getElementById("jd-editor")?.value || "";
@@ -1732,7 +1724,7 @@
         const res = await fetch('/api/auto-tailor-resume', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ company: comp, title: tit, jd: jdText, template: activeTmpl })
+          body: JSON.stringify({ company: comp, title: tit, jd: jdText, template: activeTmpl, current_markdown: currentMd })
         }).then(r => r.json());
 
         if (res.success && res.generated_text) {
@@ -2163,7 +2155,8 @@
           const compileTmpl = document.getElementById("compile-summary-template");
           if (compileTmpl) compileTmpl.innerText = res.active_template;
 
-          showToast(`Active template set to: ${res.active_template}`);
+          showToast(`Active template set to: ${res.active_template}. Loading structure into editor...`);
+          await loadTemplateToMarkdown(res.active_template);
         } else {
           showToast(`Error: ${res.error || 'Failed to select template'}`, true);
         }
@@ -2195,9 +2188,7 @@
               showToast(`🎉 Template '${file.name}' uploaded and activated!`);
               await loadTemplates();
               fileInput.value = "";
-              if (confirm(`Template '${file.name}' is now active! Would you like to load its structure and headings directly into the Markdown Editor now?`)) {
-                await loadTemplateToMarkdown(file.name);
-              }
+              await loadTemplateToMarkdown(file.name);
             } else {
               showToast(`Upload failed: ${res.error || 'Unknown error'}`, true);
             }
@@ -2219,9 +2210,7 @@
               showToast(`🎉 Template '${file.name}' uploaded and activated!`);
               await loadTemplates();
               fileInput.value = "";
-              if (confirm(`Template '${file.name}' is now active! Would you like to load its structure and headings directly into the Markdown Editor now?`)) {
-                await loadTemplateToMarkdown(file.name);
-              }
+              await loadTemplateToMarkdown(file.name);
             } else {
               showToast(`Upload failed: ${res.error || 'Unknown error'}`, true);
             }
@@ -2253,6 +2242,7 @@
           if (editor) editor.value = res.markdown;
           appState.outputs.resume = res.markdown;
           renderResumePreview();
+          await saveOutputs();
           showToast(`✅ Successfully loaded '${template}' into Markdown editor!`);
         } else {
           showToast(`Failed to extract markdown: ${res.error || 'Unknown error'}`, true);
@@ -3176,7 +3166,28 @@
       const selStart = editor.selectionStart;
       const selEnd = editor.selectionEnd;
       const hasSelection = (selEnd > selStart && editor.value.substring(selStart, selEnd).trim().length > 0);
-      const textToImprove = hasSelection ? editor.value.substring(selStart, selEnd) : editor.value;
+      
+      let textToImprove = "";
+      let summaryRange = null;
+
+      if (hasSelection) {
+        textToImprove = editor.value.substring(selStart, selEnd);
+      } else if (isResume) {
+        // Automatically target the Summary section to preserve template layout intact
+        const fullVal = editor.value;
+        const sumMatch = fullVal.match(/(##\s*(?:Summary|Executive Summary)[\r\n]+)([\s\S]*?)(?=(?:\r?\n##\s)|\Z)/i);
+        if (sumMatch && sumMatch[2].trim()) {
+          textToImprove = sumMatch[2].trim();
+          const startIdx = sumMatch.index + sumMatch[1].length;
+          summaryRange = { start: startIdx, end: startIdx + sumMatch[2].length };
+          showToast(`Polishing Summary section (tip: highlight any bullet points to polish them directly)...`);
+        } else {
+          showToast("Tip: Please highlight any specific bullet points or text you want to polish.", true);
+          return;
+        }
+      } else {
+        textToImprove = editor.value;
+      }
 
       const jdText = document.getElementById("jd-editor").value;
       const instruction = document.getElementById(modeId).value;
@@ -3220,6 +3231,8 @@
           let updatedFullText = "";
           if (hasSelection) {
             updatedFullText = editor.value.substring(0, selStart) + res.improved_text + editor.value.substring(selEnd);
+          } else if (summaryRange) {
+            updatedFullText = editor.value.substring(0, summaryRange.start) + res.improved_text + "\n\n" + editor.value.substring(summaryRange.end).replace(/^\n+/, '');
           } else {
             updatedFullText = res.improved_text;
           }
@@ -3231,8 +3244,8 @@
             renderCLPreview();
             appState.outputs.cover_letter = updatedFullText;
           }
-          saveOutputs();
-          showToast(`Successfully improved ${hasSelection ? 'selected text' : (isResume ? 'resume' : 'cover letter')} with ${aiCfg.provider.toUpperCase()}!`);
+          await saveOutputs();
+          showToast(`Successfully improved ${hasSelection ? 'selected text' : (isResume ? 'summary' : 'cover letter')} with ${aiCfg.provider.toUpperCase()}!`);
         } else {
           showToast(`AI polish failed: ${res.error || 'Unknown error'}`, true);
         }
@@ -3283,7 +3296,8 @@
             jd_text: jdText,
             company: comp,
             title: tit,
-            template: isResume ? (document.getElementById("resume-template-select")?.value || "") : "",
+            template: isResume ? (document.getElementById("resume-template-select")?.value || appState.activeTemplate || "") : "",
+            current_markdown: isResume ? (document.getElementById("resume-editor")?.value || "") : "",
             provider: aiCfg.provider,
             model: aiCfg.model,
             api_key: aiCfg.api_key,

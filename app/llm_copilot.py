@@ -529,7 +529,7 @@ def tailor_template_markdown(tmpl_md, tailored_summary, tailored_bullets_skills,
         )
     return tmpl_md
 
-def build_instant_tailored_resume(target_company="Target Company", target_title="Technology Leader", jd_text="", template_name=None):
+def build_instant_tailored_resume(target_company="Target Company", target_title="Technology Leader", jd_text="", template_name=None, current_markdown=None):
     """
     Deterministically generates a 100% verified, zero-hallucination tailored resume
     strictly aligned to the target company, target title, and job description requirements.
@@ -611,7 +611,11 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
 * **Enterprise Networking & Edge Security:** Cisco Routing & Switching (Catalyst, ISRs), Fortinet FortiGate, Checkpoint Firewalls, SD-WAN, Site-to-Site IPsec VPNs, Enterprise Wireless LAN Controllers (WLC), Secure Web Gateways.
 * **Vendor & Commercial Management:** Managing Vendors & Technology Partners, SLA & Contract Negotiation, MSP Performance Auditing, RFP/RFI Evaluation, Technical Change Advisory Boards (TCAB/DCAB), ITIL v3/v4 Service Management."""
 
-    # Check if active template is a custom template (e.g. CVS or user uploaded format)
+    # 1. If current_markdown provided directly and contains markdown headings, tailor directly into it
+    if current_markdown and len(current_markdown.strip()) > 300 and ("## " in current_markdown):
+        return tailor_template_markdown(current_markdown, summary, competencies, pipe_skills, company, title)
+
+    # 2. Check if active template is a custom template (e.g. CVS or user uploaded format)
     try:
         from template_manager import get_active_template, extract_markdown_from_template
         active_tmpl = template_name or get_active_template()
@@ -619,6 +623,18 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
             tmpl_md = extract_markdown_from_template(active_tmpl)
             if tmpl_md and len(tmpl_md) > 200:
                 return tailor_template_markdown(tmpl_md, summary, competencies, pipe_skills, company, title)
+    except Exception:
+        pass
+
+    # 3. Check if output/tailored_resume.md on disk has a structured template
+    try:
+        from storage_config import get_output_dir
+        disk_path = os.path.join(get_output_dir(), "tailored_resume.md")
+        if os.path.exists(disk_path):
+            with open(disk_path, "r", encoding="utf-8") as f:
+                disk_md = f.read()
+            if disk_md and len(disk_md.strip()) > 300 and ("## " in disk_md):
+                return tailor_template_markdown(disk_md, summary, competencies, pipe_skills, company, title)
     except Exception:
         pass
 
@@ -856,12 +872,17 @@ Rajiv (Raj) Parikh
         "formatting_rules": fmt_rules[:1000] if fmt_rules else ""
     }
 
-def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", target_company="", target_title="", provider="local", api_key="", ollama_url=None, template_name=None):
+def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", target_company="", target_title="", provider="local", api_key="", ollama_url=None, template_name=None, current_markdown=None):
     """Generates a complete, tailored draft strictly bounded to the target company, target title, and verified KB."""
     from application_manager import detect_company_and_title
     det = detect_company_and_title(jd_text)
     comp = target_company.strip() if target_company else det.get("company", "Target Company")
     title = target_title.strip() if target_title else det.get("title", "Technology Leader")
+
+    kb_summary = load_kb_summary(max_chars=3500)
+    prof = get_candidate_profile_data()
+    prof_name = prof.get("full_name", "Senior Technology Leader")
+    prof_contact = f"{prof_name}, {prof.get('address', 'Sydney NSW')} | {prof.get('phone', '+61 400 000 000')} | {prof.get('email', 'candidate@example.com')} | {prof.get('total_years_experience', '20+')} experience"
 
     # If it's a cover letter, we can first build the instant grounded baseline
     if doc_type == "cl":
@@ -871,6 +892,70 @@ def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", 
             status = get_ollama_status(ollama_url)
             if not status.get("online"):
                 return {"success": True, "generated_text": instant_draft}
+
+    # For resume: assemble directly into template blueprint
+    if doc_type == "resume":
+        tmpl_md = ""
+        # 1. Use current markdown in editor if valid
+        if current_markdown and len(current_markdown.strip()) > 300 and ("## " in current_markdown):
+            tmpl_md = current_markdown
+        else:
+            try:
+                from template_manager import get_active_template, extract_markdown_from_template
+                active_tmpl = template_name or get_active_template()
+                if active_tmpl and not active_tmpl.startswith("Resume of Raj Parikh.docx"):
+                    extracted = extract_markdown_from_template(active_tmpl)
+                    if extracted and len(extracted) > 200:
+                        tmpl_md = extracted
+            except Exception:
+                pass
+            if not tmpl_md:
+                try:
+                    from storage_config import get_output_dir
+                    out_resume_path = os.path.join(get_output_dir(), "tailored_resume.md")
+                    if os.path.exists(out_resume_path):
+                        with open(out_resume_path, "r", encoding="utf-8") as f:
+                            disk_md = f.read()
+                        if disk_md and len(disk_md.strip()) > 300 and ("## " in disk_md):
+                            tmpl_md = disk_md
+                except Exception:
+                    pass
+
+        instant_res = build_instant_tailored_resume(comp, title, jd_text, template_name=template_name, current_markdown=tmpl_md)
+        if tmpl_md and len(tmpl_md) > 200:
+            # If local and Ollama is offline, return instant template-tailored draft
+            if provider == "local":
+                status = get_ollama_status(ollama_url)
+                if not status.get("online"):
+                    return {"success": True, "generated_text": instant_res}
+
+            # Otherwise, use LLM to enhance summary within template blueprint
+            summary_prompt = f"""### CANDIDATE VERIFIED KNOWLEDGE BASE & PROFILE TRUTH:
+{kb_summary}
+
+### TARGET JOB DESCRIPTION:
+{jd_text[:1500] if jd_text else "Target Role Alignment"}
+
+### MANDATORY APPLICATION TARGET:
+- Target Company: {comp}
+- Target Position Title: {title}
+
+Write a punchy, executive-level 2-paragraph Tailored Summary for {title} at {comp} strictly grounded in candidate truth. Output ONLY the summary paragraphs, no headings:"""
+            system_prompt = (
+                "You are an Elite Executive Career Strategist and Anti-Hallucination Guardrail.\n"
+                f"You are preparing an executive resume summary strictly for the role of '{title}' at '{comp}'.\n"
+                "STRICT GUARDRAILS: Do not invent any facts, dates, or metrics. Output ONLY the improved summary text."
+            )
+            try:
+                llm_summary = query_llm(summary_prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.15, num_predict=400, ollama_url=ollama_url)
+                if llm_summary.startswith("```"):
+                    llm_summary = re.sub(r'^```[a-z]*\n|```$', '', llm_summary.strip())
+                if llm_summary and len(llm_summary.strip()) > 50:
+                    pipe_skills = "Cyber Incident Response & Command | Threat Containment & Recovery | Root-Cause Analysis (RCA) | Control Gap Remediation | Threat Actor TTPs & ATT&CK | Executive Crisis Communication | Follow-the-Sun Operations | Security Telemetry (SIEM/EDR) | APRA CPS 234 Assurance | Service Management (ITIL/CAB)"
+                    return {"success": True, "generated_text": tailor_template_markdown(tmpl_md, llm_summary.strip(), "", pipe_skills, comp, title)}
+            except Exception:
+                pass
+            return {"success": True, "generated_text": instant_res}
 
     kb_summary = load_kb_summary(max_chars=3500)
     format_data = load_application_format_exemplar(doc_type, template_name=template_name)
@@ -950,7 +1035,12 @@ Write a crisp, powerful, single-page tailored Markdown Cover Letter specifically
             
         return {"success": True, "generated_text": res}
     except Exception as e:
-        # Fallback to deterministic instant draft for cover letter
+        # Fallback to deterministic instant draft grounded in active template
         if doc_type == "cl":
             return {"success": True, "generated_text": build_instant_tailored_cover_letter(comp, title, jd_text)}
-        return {"success": False, "error": str(e)}
+        try:
+            from template_manager import get_active_template
+            active_tmpl = template_name or get_active_template()
+            return {"success": True, "generated_text": build_instant_tailored_resume(comp, title, jd_text, template_name=active_tmpl)}
+        except Exception:
+            return {"success": True, "generated_text": build_instant_tailored_resume(comp, title, jd_text)}

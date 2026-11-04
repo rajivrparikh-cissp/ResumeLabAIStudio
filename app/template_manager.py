@@ -263,7 +263,12 @@ def extract_markdown_from_template(template_name):
     raise ValueError(f"Unsupported template format: {ext}")
 
 def apply_template_to_markdown(template_name):
-    md_content = extract_markdown_from_template(template_name)
+    clean_name = sanitize_template_filename(template_name)
+    try:
+        set_active_template(clean_name)
+    except Exception:
+        pass
+    md_content = extract_markdown_from_template(clean_name)
     output_dir = get_output_dir()
     os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, "tailored_resume.md")
@@ -271,7 +276,7 @@ def apply_template_to_markdown(template_name):
         f.write(md_content)
     return {
         "success": True,
-        "template": template_name,
+        "template": clean_name,
         "markdown": md_content,
         "length": len(md_content)
     }

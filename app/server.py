@@ -346,7 +346,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
 
         output_dir = get_output_dir()
         template_name = data.get("template") or get_active_template()
-        tailored_resume = build_instant_tailored_resume(company, title, jd_text, template_name=template_name)
+        current_md = data.get("current_markdown", "")
+        tailored_resume = build_instant_tailored_resume(company, title, jd_text, template_name=template_name, current_markdown=current_md)
         with open(os.path.join(output_dir, "tailored_resume.md"), "w", encoding="utf-8") as f:
             f.write(tailored_resume)
 
@@ -731,7 +732,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             result = {"success": True, "generated_text": build_instant_tailored_cover_letter(company, title, jd_text)}
         else:
             template_name = data.get("template") or get_active_template()
-            result = generate_grounded_document(doc_type=doc_type, jd_text=jd_text, model=model, target_company=company, target_title=title, provider=provider, api_key=api_key, ollama_url=ollama_url, template_name=template_name)
+            current_md = data.get("current_markdown", "")
+            result = generate_grounded_document(doc_type=doc_type, jd_text=jd_text, model=model, target_company=company, target_title=title, provider=provider, api_key=api_key, ollama_url=ollama_url, template_name=template_name, current_markdown=current_md)
         self.send_json(result)
 
     def handle_get_profile(self):

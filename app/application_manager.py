@@ -36,12 +36,17 @@ def set_active_target(company, title):
     os.makedirs(os.path.dirname(target_file), exist_ok=True)
     clean_company = sanitize_filename(company) or "Target Company"
     clean_title = sanitize_filename(title) or "Target Role"
-    data = {
-        "company": clean_company,
-        "title": clean_title,
-        "folder_name": f"{clean_company} - {clean_title}",
-        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
+    data = {}
+    if os.path.exists(target_file):
+        try:
+            with open(target_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    data["company"] = clean_company
+    data["title"] = clean_title
+    data["folder_name"] = f"{clean_company} - {clean_title}"
+    data["updated_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(target_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     return data
