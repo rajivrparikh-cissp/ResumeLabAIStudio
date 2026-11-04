@@ -273,8 +273,9 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
         # Immediately build freshly tailored resume & cover letter matching new role & company!
         t_comp = target["company"] if target else "Target Company"
         t_tit = target["title"] if target else "Technology Leader"
+        active_tmpl = get_active_template()
         
-        tailored_resume = build_instant_tailored_resume(t_comp, t_tit, jd_text)
+        tailored_resume = build_instant_tailored_resume(t_comp, t_tit, jd_text, template_name=active_tmpl)
         with open(os.path.join(output_dir, "tailored_resume.md"), "w", encoding="utf-8") as f:
             f.write(tailored_resume)
             
@@ -316,7 +317,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
                 jd_text = f.read()
 
         output_dir = get_output_dir()
-        tailored_resume = build_instant_tailored_resume(target["company"], target["title"], jd_text)
+        active_tmpl = get_active_template()
+        tailored_resume = build_instant_tailored_resume(target["company"], target["title"], jd_text, template_name=active_tmpl)
         with open(os.path.join(output_dir, "tailored_resume.md"), "w", encoding="utf-8") as f:
             f.write(tailored_resume)
             
@@ -343,7 +345,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
                 jd_text = f.read()
 
         output_dir = get_output_dir()
-        tailored_resume = build_instant_tailored_resume(company, title, jd_text)
+        template_name = data.get("template") or get_active_template()
+        tailored_resume = build_instant_tailored_resume(company, title, jd_text, template_name=template_name)
         with open(os.path.join(output_dir, "tailored_resume.md"), "w", encoding="utf-8") as f:
             f.write(tailored_resume)
 
@@ -727,7 +730,8 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             from llm_copilot import build_instant_tailored_cover_letter
             result = {"success": True, "generated_text": build_instant_tailored_cover_letter(company, title, jd_text)}
         else:
-            result = generate_grounded_document(doc_type=doc_type, jd_text=jd_text, model=model, target_company=company, target_title=title, provider=provider, api_key=api_key, ollama_url=ollama_url)
+            template_name = data.get("template") or get_active_template()
+            result = generate_grounded_document(doc_type=doc_type, jd_text=jd_text, model=model, target_company=company, target_title=title, provider=provider, api_key=api_key, ollama_url=ollama_url, template_name=template_name)
         self.send_json(result)
 
     def handle_get_profile(self):

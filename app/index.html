@@ -564,45 +564,7 @@
         </div>
       </div>
 
-      <!-- LLaMA Anti-Hallucination Copilot Toolbar -->
-      <div class="p-3 bg-slate-900/90 border border-indigo-500/30 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-lg">
-        <div class="flex items-center space-x-3">
-          <div onclick="openAiSetupModal()" class="flex items-center space-x-2 bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 px-2.5 py-1 rounded-lg cursor-pointer transition" title="Click to change AI engine or model">
-            <span class="text-base" id="toolbar-ai-icon">🦙</span>
-            <span class="text-xs font-bold text-indigo-200" id="toolbar-ai-label">AI Grounding Copilot</span>
-            <span id="llama-status-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
-              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span id="llama-model-name">llama3.2 (Active)</span>
-            </span>
-            <span class="text-[10px] text-indigo-400 font-mono">⚙️</span>
-          </div>
-          <span class="text-xs text-slate-400 hidden xl:inline">Strict zero-hallucination negative constraints anchored to Knowledge Base</span>
-        </div>
-
-        <div class="flex items-center space-x-2">
-          <select id="llama-improve-mode" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
-            <option value="Polish bullet points with strict action-verb and ATS grounding">Action-Verb & ATS Polish (Zero Hallucination)</option>
-            <option value="Strengthen XYZ achievement impact using ONLY KB metrics">XYZ Impact Polish (Preserve KB Metrics)</option>
-            <option value="Align technical terminology strictly to target JD">JD Alignment & Terminology Precision</option>
-          </select>
-          <button onclick="autoTailorResume()" id="btn-instant-tailor-resume" class="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition active:scale-95" title="Instantly assemble tailored resume strictly grounded in Knowledge Base">
-            <span>⚡ Instant Auto-Tailor</span>
-          </button>
-          <button onclick="runLlmGenerate('resume')" id="btn-llama-gen-resume" class="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition active:scale-95" title="Generate tailored draft styled after past resume folders and grounded in KB">
-            <span>✨ LLaMA Generate Draft</span>
-          </button>
-          <button onclick="runLlmImprove('resume')" id="btn-llama-improve-resume" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm transition active:scale-95">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-            <span>Run LLaMA Polish</span>
-          </button>
-          <button onclick="runLlmAudit()" id="btn-llama-audit" class="flex items-center space-x-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-semibold px-3 py-1.5 rounded-lg transition active:scale-95">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <span>🔍 Forensic Hallucination Audit</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Template Layout & Visual Style Sync Card -->
+      <!-- PHASE 1: Resume Template Format & Structure Blueprint (First) -->
       <div class="glass-panel p-3.5 rounded-xl border border-indigo-500/30 bg-gradient-to-r from-slate-900 via-indigo-950/20 to-slate-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg">
         <div class="flex items-center space-x-3">
           <div class="h-9 w-9 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 text-base shrink-0">
@@ -610,11 +572,12 @@
           </div>
           <div>
             <div class="flex items-center space-x-2">
-              <span class="text-xs font-bold text-white">Resume Template Format:</span>
+              <span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded">Phase 1</span>
+              <span class="text-xs font-bold text-white">Define Template Blueprint:</span>
               <span id="active-template-badge" class="px-2 py-0.5 text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full">Resume of Raj Parikh.docx</span>
             </div>
             <p class="text-[11px] text-slate-400 mt-0.5">
-              Select or upload a custom Word (.docx) or Markdown (.md) template to re-map tailored sections into target paragraph & bullet hierarchy.
+              Choose or upload your Word (.docx) or Markdown (.md) layout. Click <span class="text-emerald-400 font-semibold">Load into Markdown</span> to lock this format as the master blueprint.
             </p>
           </div>
         </div>
@@ -657,6 +620,58 @@
 
       <!-- Template Sync Feedback Banner (hidden by default) -->
       <div id="template-sync-banner" class="hidden p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl flex items-center justify-between text-xs text-emerald-200 shadow-md">
+        <div class="flex items-center space-x-2">
+          <span>✅</span>
+          <span id="template-sync-msg">Resume formatted to template successfully.</span>
+        </div>
+        <a href="/api/download/tailored_resume.docx" download class="font-bold underline hover:text-white flex items-center space-x-1 text-emerald-300">
+          <span>Download Formatted .docx</span>
+          <span>⬇️</span>
+        </a>
+      </div>
+
+      <!-- PHASE 2: Local AI Tailoring & Copilot Controls (Second) -->
+      <div class="p-3 bg-slate-900/90 border border-indigo-500/30 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-lg">
+        <div class="flex items-center space-x-3">
+          <div onclick="openAiSetupModal()" class="flex items-center space-x-2 bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 px-2.5 py-1 rounded-lg cursor-pointer transition" title="Click to change AI engine or model">
+            <span class="text-base" id="toolbar-ai-icon">🦙</span>
+            <div class="flex flex-col">
+              <div class="flex items-center space-x-1.5">
+                <span class="px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 rounded">Phase 2</span>
+                <span class="text-xs font-bold text-indigo-200" id="toolbar-ai-label">AI Copilot</span>
+              </div>
+              <span id="llama-status-badge" class="px-1.5 py-0.2 mt-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="llama-model-name">llama3.2 (Active)</span>
+              </span>
+            </div>
+            <span class="text-[10px] text-indigo-400 font-mono ml-1">⚙️</span>
+          </div>
+          <span class="text-xs text-slate-400 hidden xl:inline">Tailors content directly into the active blueprint with strict zero-hallucination constraints</span>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <select id="llama-improve-mode" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500">
+            <option value="Polish bullet points with strict action-verb and ATS grounding">Action-Verb & ATS Polish (Zero Hallucination)</option>
+            <option value="Strengthen XYZ achievement impact using ONLY KB metrics">XYZ Impact Polish (Preserve KB Metrics)</option>
+            <option value="Align technical terminology strictly to target JD">JD Alignment & Terminology Precision</option>
+          </select>
+          <button onclick="autoTailorResume()" id="btn-instant-tailor-resume" class="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition active:scale-95" title="Instantly tailor resume summary & keywords mapped directly into the active template blueprint">
+            <span>⚡ Instant Auto-Tailor</span>
+          </button>
+          <button onclick="runLlmGenerate('resume')" id="btn-llama-gen-resume" class="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition active:scale-95" title="Generate tailored draft styled after the active template blueprint and grounded in KB">
+            <span>✨ LLaMA Generate Draft</span>
+          </button>
+          <button onclick="runLlmImprove('resume')" id="btn-llama-improve-resume" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm transition active:scale-95" title="Polish selected bullet points or text in place while locking template structure">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            <span>Run LLaMA Polish</span>
+          </button>
+          <button onclick="runLlmAudit()" id="btn-llama-audit" class="flex items-center space-x-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 text-xs font-semibold px-3 py-1.5 rounded-lg transition active:scale-95" title="Fact-check resume claims against Candidate Knowledge Base">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>🔍 Forensic Hallucination Audit</span>
+          </button>
+        </div>
+      </div>
         <div class="flex items-center space-x-2">
           <span>✅</span>
           <span id="template-sync-msg">Resume formatted to template successfully.</span>
@@ -1707,21 +1722,17 @@
     async function autoTailorResume() {
       if (checkDemoAction("Auto-Tailor Resume")) return;
       const activeTmpl = document.getElementById("resume-template-select")?.value || "";
-      if (activeTmpl && !activeTmpl.startsWith("Resume of Raj Parikh.docx")) {
-        const proceed = confirm(`⚠️ Notice: "Instant Auto-Tailor" generates the baseline full resume from your Knowledge Base.\n\nClick OK to generate. (If you want your "${activeTmpl}" layout, you can click "📄 Load into Markdown" afterwards or use "Run LLaMA Polish" on selected bullets).`);
-        if (!proceed) return;
-      }
       const comp = appState.detectedMeta?.company || "Target Company";
       const tit = appState.detectedMeta?.title || "Technology Leader";
       const jdText = document.getElementById("jd-editor")?.value || "";
 
-      showToast(`⚡ Assembling tailored resume for ${tit}...`);
+      showToast(`⚡ Tailoring resume for ${tit} using ${activeTmpl || 'active template'} blueprint...`);
 
       try {
         const res = await fetch('/api/auto-tailor-resume', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ company: comp, title: tit, jd: jdText })
+          body: JSON.stringify({ company: comp, title: tit, jd: jdText, template: activeTmpl })
         }).then(r => r.json());
 
         if (res.success && res.generated_text) {
@@ -1730,7 +1741,7 @@
           renderResumePreview();
           checkResumeMismatch();
           await saveOutputs();
-          showToast(`✅ Resume tailored for ${tit}!`);
+          showToast(`✅ Resume tailored for ${tit} within ${activeTmpl || 'template'}!`);
         }
       } catch (err) {
         showToast(`Auto-tailor error: ${err.message}`, true);
@@ -3272,6 +3283,7 @@
             jd_text: jdText,
             company: comp,
             title: tit,
+            template: isResume ? (document.getElementById("resume-template-select")?.value || "") : "",
             provider: aiCfg.provider,
             model: aiCfg.model,
             api_key: aiCfg.api_key,

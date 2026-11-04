@@ -471,10 +471,69 @@ Thank you for your time and consideration.
 [LinkedIn Profile]({cand_li}) | [Portfolio]({cand_port})
 """
 
-def build_instant_tailored_resume(target_company="Target Company", target_title="Technology Leader", jd_text=""):
+def tailor_template_markdown(tmpl_md, tailored_summary, tailored_bullets_skills, tailored_pipe_skills, company, title):
+    """
+    Surgically injects the candidate verified profile header, tailored executive summary, 
+    and tailored skills into the user's active template markdown, preserving all custom sections, dates, and typography.
+    """
+    prof = get_candidate_profile_data()
+    cand_full = prof.get("full_name", "Rajiv (Raj) Parikh")
+    cand_addr = prof.get("address", "169a Purchase Road, Cherrybrook, NSW 2126")
+    cand_phone = prof.get("phone", "0433 463 121")
+    cand_email = prof.get("email", "raj.parikh@hotmail.com")
+    cand_cit = prof.get("citizenship", "Australian Citizen")
+    cand_li = prof.get("linkedin", "https://www.linkedin.com/in/rajivparikh")
+    cand_port = prof.get("portfolio_url", "https://itsmtracker.crashcoursetech.com")
+
+    # Header subtitle
+    if "senior technology leader" in title.lower() or "executive" in title.lower():
+        sub = f"**{title}**"
+    else:
+        sub = f"**{title} | Senior Technology Leader**"
+
+    header_block = f"""# {cand_full}
+{sub}  
+{cand_addr} | {cand_phone} | {cand_email} | {cand_cit}  
+[LinkedIn Profile]({cand_li}) | [Portfolio]({cand_port})
+
+---
+"""
+    # Replace top section before first ##
+    if re.search(r'\A.*?(?=\n##\s)', tmpl_md, flags=re.DOTALL):
+        tmpl_md = re.sub(r'\A.*?(?=\n##\s)', header_block.rstrip() + '\n\n', tmpl_md, count=1, flags=re.DOTALL)
+
+    summary_pattern = r'(##\s*(?:Summary|Executive Summary)[\r\n]+)(.*?)(?=\n##\s|\Z)'
+    if re.search(summary_pattern, tmpl_md, flags=re.DOTALL | re.IGNORECASE):
+        tmpl_md = re.sub(
+            summary_pattern,
+            rf'\g<1>{tailored_summary}\n\n',
+            tmpl_md,
+            count=1,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+    
+    skills_pattern = r'(##\s*(?:Skills|Core Competencies(?: & Technical Skills)?)[\r\n]+)(.*?)(?=\n##\s|\Z)'
+    skills_match = re.search(skills_pattern, tmpl_md, flags=re.DOTALL | re.IGNORECASE)
+    if skills_match:
+        existing_skills_content = skills_match.group(2)
+        if "|" in existing_skills_content or not existing_skills_content.strip().startswith("*"):
+            replacement = tailored_pipe_skills
+        else:
+            replacement = tailored_bullets_skills
+        tmpl_md = re.sub(
+            skills_pattern,
+            rf'\g<1>{replacement}\n\n',
+            tmpl_md,
+            count=1,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+    return tmpl_md
+
+def build_instant_tailored_resume(target_company="Target Company", target_title="Technology Leader", jd_text="", template_name=None):
     """
     Deterministically generates a 100% verified, zero-hallucination tailored resume
     strictly aligned to the target company, target title, and job description requirements.
+    Respects active template layout without reverting to legacy formats.
     """
     title = (target_title or "Technology Leader").strip()
     company = (target_company or "Target Company").strip()
@@ -508,6 +567,7 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
             "supplier incident response (200+ vendors). Adept at driving operational excellence, modeling risk discipline, and "
             "building high-performing technical teams aligned to corporate governance objectives."
         )
+        pipe_skills = "Cyber Incident Response & Command | Threat Containment & Recovery | Root-Cause Analysis (RCA) | Control Gap Remediation | Threat Actor TTPs & ATT&CK | Executive Crisis Communication | Follow-the-Sun Operations | Security Telemetry (SIEM/EDR) | APRA CPS 234 Assurance | Service Management (ITIL/CAB)"
     elif is_network:
         summary = (
             "Strategic Technology Leader and Network Engineering Specialist with over 25+ years of verified experience directing "
@@ -518,6 +578,7 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
             "firewalls. Cisco-certified engineer (CCNP, CCNA) and credentialed security manager (CISSP, CISM) adept at governing "
             "24x7 incident response, optimizing telecom carrier contracts, and ensuring compliance with APRA CPS 234/230 standards."
         )
+        pipe_skills = "Enterprise Networking & Telecommunications | Cisco Routing & Switching | Fortinet FortiGate | Checkpoint Firewalls | SD-WAN & VPNs | 24x7 Network Incident Response | APRA CPS 234 Compliance | Telecom Carrier Management"
     else:
         summary = (
             "Strategic and hands-on Technology Leader with over 25+ years of verified experience directing enterprise network "
@@ -528,6 +589,7 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
             "and credentialed security executive (CISSP, CISM) with demonstrated expertise managing 24x7 cyber incident response, "
             "optimizing multi-vendor MSP and telecommunication contracts, and governing disaster recovery (DR/BCP) across mission-critical platforms."
         )
+        pipe_skills = "Enterprise Infrastructure & Cloud Architecture | Microsoft Azure & AWS | Hybrid Virtualization (VMware/Hyper-V) | Cyber Risk Governance | Disaster Recovery (BCP/DR) | Vendor & SLA Management | ITIL Service Delivery"
 
     # 3. Core Competencies & Technical Skills
     if is_cyber and not is_network:
@@ -548,6 +610,17 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
 * **Cybersecurity Operations & Defense:** Threat Detection & Response, Vulnerability Management (Qualys), Zero-Trust Architecture, Endpoint Security (EDR), Identity & Access Management (IAM/RBAC/ABAC, Azure AD / Entra ID, MFA), APRA CPS 230/234 Compliance.
 * **Enterprise Networking & Edge Security:** Cisco Routing & Switching (Catalyst, ISRs), Fortinet FortiGate, Checkpoint Firewalls, SD-WAN, Site-to-Site IPsec VPNs, Enterprise Wireless LAN Controllers (WLC), Secure Web Gateways.
 * **Vendor & Commercial Management:** Managing Vendors & Technology Partners, SLA & Contract Negotiation, MSP Performance Auditing, RFP/RFI Evaluation, Technical Change Advisory Boards (TCAB/DCAB), ITIL v3/v4 Service Management."""
+
+    # Check if active template is a custom template (e.g. CVS or user uploaded format)
+    try:
+        from template_manager import get_active_template, extract_markdown_from_template
+        active_tmpl = template_name or get_active_template()
+        if active_tmpl and not active_tmpl.startswith("Resume of Raj Parikh.docx"):
+            tmpl_md = extract_markdown_from_template(active_tmpl)
+            if tmpl_md and len(tmpl_md) > 200:
+                return tailor_template_markdown(tmpl_md, summary, competencies, pipe_skills, company, title)
+    except Exception:
+        pass
 
     prof = get_candidate_profile_data()
     cand_full = prof.get("full_name", "Senior Technology Leader")
@@ -703,7 +776,7 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
 * **Bachelor of Science (B.Sc.)**
 """
 
-def load_application_format_exemplar(doc_type="resume"):
+def load_application_format_exemplar(doc_type="resume", template_name=None):
     """Returns normalized formatting structures that prevent cross-company data leakage."""
     fmt_path = os.path.join(BASE_DIR, "knowledge_base", "formatting_guide.md")
     fmt_rules = ""
@@ -746,7 +819,7 @@ Rajiv (Raj) Parikh
     # For resume:
     try:
         from template_manager import get_active_template, extract_markdown_from_template
-        active_tmpl = get_active_template()
+        active_tmpl = template_name or get_active_template()
         if active_tmpl:
             tmpl_md = extract_markdown_from_template(active_tmpl)
             if tmpl_md and len(tmpl_md) > 200:
@@ -783,7 +856,7 @@ Rajiv (Raj) Parikh
         "formatting_rules": fmt_rules[:1000] if fmt_rules else ""
     }
 
-def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", target_company="", target_title="", provider="local", api_key="", ollama_url=None):
+def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", target_company="", target_title="", provider="local", api_key="", ollama_url=None, template_name=None):
     """Generates a complete, tailored draft strictly bounded to the target company, target title, and verified KB."""
     from application_manager import detect_company_and_title
     det = detect_company_and_title(jd_text)
@@ -800,7 +873,7 @@ def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", 
                 return {"success": True, "generated_text": instant_draft}
 
     kb_summary = load_kb_summary(max_chars=3500)
-    format_data = load_application_format_exemplar(doc_type)
+    format_data = load_application_format_exemplar(doc_type, template_name=template_name)
     prof = get_candidate_profile_data()
     prof_name = prof.get("full_name", "Senior Technology Leader")
     prof_contact = f"{prof_name}, {prof.get('address', 'Sydney NSW')} | {prof.get('phone', '+61 400 000 000')} | {prof.get('email', 'candidate@example.com')} | {prof.get('total_years_experience', '20+')} experience"
