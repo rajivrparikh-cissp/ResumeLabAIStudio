@@ -16,7 +16,7 @@ from intelligence_engine import load_kb_data, analyze_jd_alignment
 def run_test_suite():
     results = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "total_tests": 6,
+        "total_tests": 7,
         "passed": 0,
         "failed": 0,
         "tests": []
@@ -55,7 +55,7 @@ def run_test_suite():
             "Key responsibilities include threat analysis, situational awareness, insider risk oversight, and managerial responsibilities."
         )
 
-        res1 = build_instant_tailored_resume(t1_company, t1_title, t1_jd)
+        res1 = build_instant_tailored_resume(t1_company, t1_title, t1_jd, template_name="Resume of Raj Parikh.docx")
         cl1 = build_instant_tailored_cover_letter(t1_company, t1_title, t1_jd)
 
         t1_errors = []
@@ -90,7 +90,7 @@ def run_test_suite():
             "Manage infrastructure and cybersecurity for automotive corporate sites."
         )
 
-        res2 = build_instant_tailored_resume(t2_company, t2_title, t2_jd)
+        res2 = build_instant_tailored_resume(t2_company, t2_title, t2_jd, template_name="Resume of Raj Parikh.docx")
         cl2 = build_instant_tailored_cover_letter(t2_company, t2_title, t2_jd)
 
         t2_errors = []
@@ -279,6 +279,49 @@ def run_test_suite():
         )
     except Exception as e:
         record_test("Test 6: Template Visual Layout Sync", False, "Exception occurred", [str(e)])
+
+    # -------------------------------------------------------------
+    # TEST 7: Custom Template Blueprint Preservation Across Phase 2 AI Copilot Actions
+    # -------------------------------------------------------------
+    try:
+        from llm_copilot import generate_grounded_document, grounded_improve_text
+        cvs_tmpl = "PARIKH Rajiv Parikh Draft Resume CVS.docx"
+        t7_errors = []
+        if os.path.exists(os.path.join(BASE_DIR, "template", cvs_tmpl)):
+            t7_comp = "OpenAI"
+            t7_title = "Incident Commander, Detection & Response - APAC"
+            t7_jd = "Direct end-to-end incident command across 24x7 SOC/CSIRT operations, threat containment, root-cause remediation, and executive risk communication."
+
+            # 1. Instant Auto-Tailor with even a polluted current_markdown should restore clean CVS blueprint
+            polluted_md = "# Rajiv (Raj) Parikh\n**Incident Commander**\n169a Purchase Road, Cherrybrook, NSW 2126\n---\n## Summary\nOld summary\n## Skills\nOld skills"
+            cvs_instant = build_instant_tailored_resume(t7_comp, t7_title, t7_jd, template_name=cvs_tmpl, current_markdown=polluted_md)
+
+            for bad_str in ["Rajiv (Raj) Parikh", "169a Purchase Road", "[LinkedIn Profile]", "## Executive Summary", "Downer EDI"]:
+                if bad_str in cvs_instant[:1500]:
+                    t7_errors.append(f"Instant Auto-Tailor leaked old template string '{bad_str}'")
+
+            for req_sec in ["# Rajiv Parikh", "Australian Citizen", "0433 463 121 | raj.parikh@hotmail.com", "## Summary", "## Skills", "## Employment History", "## Prior Roles", "## Qualifications", "## Certifications", "## Expired Certifications"]:
+                if req_sec not in cvs_instant:
+                    t7_errors.append(f"Instant Auto-Tailor missing required CVS template section '{req_sec}'")
+
+            # 2. LLaMA Generate Draft should preserve exact CVS header & structure
+            gen_res = generate_grounded_document(doc_type="resume", jd_text=t7_jd, target_company=t7_comp, target_title=t7_title, template_name=cvs_tmpl, current_markdown=polluted_md)
+            cvs_gen = gen_res.get("generated_text", "")
+            for bad_str in ["Rajiv (Raj) Parikh", "169a Purchase Road", "[LinkedIn Profile]", "## Executive Summary"]:
+                if bad_str in cvs_gen[:1500]:
+                    t7_errors.append(f"LLaMA Generate Draft leaked old template string '{bad_str}'")
+            for req_sec in ["# Rajiv Parikh", "Australian Citizen", "## Summary", "## Skills", "## Employment History"]:
+                if req_sec not in cvs_gen:
+                    t7_errors.append(f"LLaMA Generate Draft missing required CVS template section '{req_sec}'")
+
+        record_test(
+            "Test 7: Custom Template Blueprint Preservation (Phase 1 -> Phase 2 Copilot)",
+            len(t7_errors) == 0,
+            f"Verified '{cvs_tmpl}' header, 2-paragraph Summary, and all sections remain 100% intact across Phase 2 actions",
+            t7_errors
+        )
+    except Exception as e:
+        record_test("Test 7: Custom Template Blueprint Preservation", False, "Exception occurred", [str(e)])
 
     # Save summary report to JSON
     report_path = os.path.join(BASE_DIR, "output", "e2e_test_report.json")

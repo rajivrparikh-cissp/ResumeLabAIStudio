@@ -1693,11 +1693,14 @@
       const banner = document.getElementById("resume-mismatch-banner");
       if (!banner) return;
 
+      const activeTmpl = document.getElementById("resume-template-select")?.value || appState.activeTemplate || "";
+      const isCustomTmpl = activeTmpl && !activeTmpl.startsWith("Resume of Raj Parikh.docx");
+
       const resLower = currentResume.toLowerCase();
       const isInfraWhenShouldBeOther = !targetTitle.includes("infrastructure manager") &&
                                        resLower.includes("infrastructure manager | senior technology leader");
       const titleFirstWord = targetTitle.split(" ")[0].toLowerCase();
-      const missingTitleKey = titleFirstWord.length > 3 && !resLower.includes(titleFirstWord);
+      const missingTitleKey = !isCustomTmpl && titleFirstWord.length > 3 && !resLower.includes(titleFirstWord);
 
       if (currentResume.trim() && (isInfraWhenShouldBeOther || missingTitleKey)) {
         banner.classList.remove("hidden");
@@ -3175,7 +3178,7 @@
       } else if (isResume) {
         // Automatically target the Summary section to preserve template layout intact
         const fullVal = editor.value;
-        const sumMatch = fullVal.match(/(##\s*(?:Summary|Executive Summary)[\r\n]+)([\s\S]*?)(?=(?:\r?\n##\s)|\Z)/i);
+        const sumMatch = fullVal.match(/(##\s*(?:Summary|Executive Summary)[ \t]*\r?\n+)([\s\S]*?)(?=\r?\n##\s|$)/i);
         if (sumMatch && sumMatch[2].trim()) {
           textToImprove = sumMatch[2].trim();
           const startIdx = sumMatch.index + sumMatch[1].length;

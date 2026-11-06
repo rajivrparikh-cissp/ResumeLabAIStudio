@@ -732,8 +732,22 @@ class ResumeLabHandler(http.server.BaseHTTPRequestHandler):
             result = {"success": True, "generated_text": build_instant_tailored_cover_letter(company, title, jd_text)}
         else:
             template_name = data.get("template") or get_active_template()
+            if template_name:
+                try:
+                    set_active_template(template_name)
+                except Exception:
+                    pass
             current_md = data.get("current_markdown", "")
             result = generate_grounded_document(doc_type=doc_type, jd_text=jd_text, model=model, target_company=company, target_title=title, provider=provider, api_key=api_key, ollama_url=ollama_url, template_name=template_name, current_markdown=current_md)
+            if result.get("success") and result.get("generated_text"):
+                try:
+                    out_dir = get_output_dir()
+                    os.makedirs(out_dir, exist_ok=True)
+                    target_file = "tailored_resume.md" if doc_type == "resume" else "tailored_cover_letter.md"
+                    with open(os.path.join(out_dir, target_file), "w", encoding="utf-8") as f:
+                        f.write(result["generated_text"])
+                except Exception:
+                    pass
         self.send_json(result)
 
     def handle_get_profile(self):

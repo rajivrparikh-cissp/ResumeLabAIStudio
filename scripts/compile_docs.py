@@ -185,7 +185,21 @@ def compile_resume(md_path, template_path, output_path):
         target_role_title = profile.get("target_title", "Head of Infrastructure & Security / Technology Leader")
 
     # Update the first 3 paragraphs of the template (Header block)
-    if profile:
+    is_custom_template = not os.path.basename(actual_docx_template).startswith("Resume of Raj Parikh.docx")
+    if is_custom_template and header_data:
+        for i in range(min(3, len(header_data))):
+            if i < len(doc.paragraphs):
+                p = doc.paragraphs[i]
+                p.text = ""
+                run = p.add_run(clean_xml_string(header_data[i]))
+                if i == 0:
+                    run.bold = True
+                    run.font.size = docx.shared.Pt(20)
+                elif i == 1:
+                    run.font.size = docx.shared.Pt(10)
+                else:
+                    run.font.size = docx.shared.Pt(10)
+    elif profile:
         # Paragraph 0: Full Name
         if len(doc.paragraphs) > 0:
             p0 = doc.paragraphs[0]

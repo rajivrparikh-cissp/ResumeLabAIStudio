@@ -302,8 +302,30 @@ def test_llm_connection(provider="local", model="", api_key="", ollama_url=None)
             "error": str(e)
         }
 
+def clean_llm_snippet(res_text, allow_headings=False):
+    """Cleans conversational preambles, code fences, and unwanted markdown headings from LLM snippet outputs."""
+    if not res_text:
+        return ""
+    text = res_text.strip()
+    if text.startswith("```"):
+        text = re.sub(r'^```[a-zA-Z]*\r?\n', '', text)
+        text = re.sub(r'\r?\n```$', '', text).strip()
+    # Strip common conversational preambles from small local models
+    text = re.sub(r'^(?:Here is|Here\'s|Below is|Sure,? here is)[^\n]*:\s*\n+', '', text, flags=re.IGNORECASE).strip()
+    if not allow_headings:
+        cleaned_lines = []
+        for line in text.splitlines():
+            s = line.strip()
+            if s.startswith("# ") or s.startswith("## ") or s.startswith("### "):
+                continue
+            if s == "---":
+                continue
+            cleaned_lines.append(line)
+        text = "\n".join(cleaned_lines).strip()
+    return text
+
 def grounded_improve_text(selected_text, doc_type="resume", jd_text="", instruction="", model="llama3.2", provider="local", api_key="", ollama_url=None):
-    kb_summary = load_kb_summary(max_chars=3500)
+    has_headings = bool(re.search(r'^#{1,3}\s', selected_text.strip(), flags=re.MULTILINE))
     
     if not instruction:
         instruction = "Improve and polish the text for clarity, impact, and ATS keywords without adding any unverified facts."
@@ -311,39 +333,34 @@ def grounded_improve_text(selected_text, doc_type="resume", jd_text="", instruct
     system_prompt = (
         "You are an Elite Executive Career Strategist and Anti-Hallucination Guardrail.\n"
         "STRICT GUARDRAILS (CRITICAL - DO NOT VIOLATE):\n"
-        "1. DO NOT invent achievements, companies, dates, or certifications not explicitly documented in the Candidate Knowledge Base.\n"
-        "2. DO NOT make up metrics (percentages, dollar amounts, headcounts) out of thin air. If a metric is not in the knowledge base, polish the qualitative outcome using strong action verbs instead of fabricating numbers.\n"
-        "3. Only use technologies, platforms, and methodologies that the candidate has verified experience with.\n"
-        "4. Align tone, vocabulary, and keywords directly with the Target Job Description without exaggerating the candidate's actual responsibilities.\n"
-        "5. CRITICAL: PRESERVE EXACT FORMATTING & STRUCTURE. Do NOT delete or alter markdown headings (#, ##, ###), section titles, bullet symbols (*), or the structural order. Polish ONLY the wording within the bullets or paragraphs.\n"
-        "6. Output ONLY the improved text. Do not provide conversational filler, conversational intros, or explanations."
+        "1. Polish ONLY the provided CURRENT DRAFT TEXT. Keep its exact paragraph count, bullet structure, and verified facts.\n"
+        "2. DO NOT invent achievements, companies, dates, or certifications.\n"
+        "3. DO NOT make up metrics (percentages, dollar amounts, headcounts) not already present in the text.\n"
+        "4. Align terminology with the Target Job Description while preserving the exact style and voice of the draft.\n"
+        "5. Do NOT add markdown headings (#, ##, ###), contact headers, or horizontal rules (---).\n"
+        "6. Output ONLY the improved text. Do not provide conversational filler, intros, or explanations."
     )
 
-    jd_snippet = jd_text[:1200] if jd_text else "Target role alignment"
+    jd_snippet = jd_text[:1000] if jd_text else "Target role alignment"
 
-    user_prompt = f"""### CANDIDATE VERIFIED KNOWLEDGE BASE:
-{kb_summary}
-
-### TARGET JOB DESCRIPTION HIGHLIGHTS:
-{jd_snippet}
-
-### CURRENT DRAFT TEXT:
+    user_prompt = f"""### CURRENT DRAFT TEXT TO POLISH:
 \"\"\"
 {selected_text}
 \"\"\"
 
-### USER INSTRUCTION:
+### TARGET JOB DESCRIPTION HIGHLIGHTS:
+{jd_snippet}
+
+### INSTRUCTION:
 {instruction}
 
-Apply the instruction strictly using ONLY verified facts. Output the improved text directly:"""
+Rewrite and polish ONLY the CURRENT DRAFT TEXT above. Keep all existing facts, companies, and metrics intact. Output ONLY the polished text with no headings and no intro:"""
 
     try:
-        res = query_llm(user_prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.15, ollama_url=ollama_url)
-        # Clean any wrapping markdown code blocks if the model wrapped everything
-        if res.startswith("```markdown\n") and res.endswith("```"):
-            res = res[12:-3].strip()
-        elif res.startswith("```\n") and res.endswith("```"):
-            res = res[4:-3].strip()
+        res = query_llm(user_prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.15, num_predict=600, ollama_url=ollama_url)
+        res = clean_llm_snippet(res, allow_headings=has_headings)
+        if not res or len(res) < 20:
+            res = selected_text
         return {"success": True, "improved_text": res}
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -473,46 +490,38 @@ Thank you for your time and consideration.
 
 def tailor_template_markdown(tmpl_md, tailored_summary, tailored_bullets_skills, tailored_pipe_skills, company, title):
     """
-    Surgically injects the candidate verified profile header, tailored executive summary, 
-    and tailored skills into the user's active template markdown, preserving all custom sections, dates, and typography.
+    Surgically injects the tailored summary and tailored skills into the user's active template markdown,
+    strictly preserving the template's exact header block, section headings, employment history, dates, and layout.
     """
-    prof = get_candidate_profile_data()
-    cand_full = prof.get("full_name", "Rajiv (Raj) Parikh")
-    cand_addr = prof.get("address", "169a Purchase Road, Cherrybrook, NSW 2126")
-    cand_phone = prof.get("phone", "0433 463 121")
-    cand_email = prof.get("email", "raj.parikh@hotmail.com")
-    cand_cit = prof.get("citizenship", "Australian Citizen")
-    cand_li = prof.get("linkedin", "https://www.linkedin.com/in/rajivparikh")
-    cand_port = prof.get("portfolio_url", "https://itsmtracker.crashcoursetech.com")
+    # If tmpl_md was previously polluted with the legacy header ('# Rajiv (Raj) Parikh' or '169a Purchase Road' or '---'),
+    # restore the clean header block from the active template on disk.
+    header_match = re.search(r'\A(.*?)(?=\r?\n##\s)', tmpl_md, flags=re.DOTALL)
+    if header_match:
+        current_header = header_match.group(1)
+        if "169a Purchase Road" in current_header or "Rajiv (Raj) Parikh" in current_header or "---" in current_header:
+            try:
+                from template_manager import get_active_template, extract_markdown_from_template
+                active_tmpl = get_active_template()
+                if active_tmpl and not active_tmpl.startswith("Resume of Raj Parikh.docx"):
+                    clean_tmpl = extract_markdown_from_template(active_tmpl)
+                    clean_hdr_m = re.search(r'\A(.*?)(?=\r?\n##\s)', clean_tmpl, flags=re.DOTALL)
+                    if clean_hdr_m:
+                        tmpl_md = re.sub(r'\A.*?(?=\r?\n##\s)', clean_hdr_m.group(1).rstrip() + '\n', tmpl_md, count=1, flags=re.DOTALL)
+            except Exception:
+                pass
 
-    # Header subtitle
-    if "senior technology leader" in title.lower() or "executive" in title.lower():
-        sub = f"**{title}**"
-    else:
-        sub = f"**{title} | Senior Technology Leader**"
-
-    header_block = f"""# {cand_full}
-{sub}  
-{cand_addr} | {cand_phone} | {cand_email} | {cand_cit}  
-[LinkedIn Profile]({cand_li}) | [Portfolio]({cand_port})
-
----
-"""
-    # Replace top section before first ##
-    if re.search(r'\A.*?(?=\n##\s)', tmpl_md, flags=re.DOTALL):
-        tmpl_md = re.sub(r'\A.*?(?=\n##\s)', header_block.rstrip() + '\n\n', tmpl_md, count=1, flags=re.DOTALL)
-
-    summary_pattern = r'(##\s*(?:Summary|Executive Summary)[\r\n]+)(.*?)(?=\n##\s|\Z)'
+    summary_pattern = r'(##\s*(?:Summary|Executive Summary)[ \t]*[\r\n]+)(.*?)(?=\r?\n##\s|\Z)'
     if re.search(summary_pattern, tmpl_md, flags=re.DOTALL | re.IGNORECASE):
+        clean_sum = clean_llm_snippet(tailored_summary, allow_headings=False)
         tmpl_md = re.sub(
             summary_pattern,
-            rf'\g<1>{tailored_summary}\n\n',
+            lambda m: f"{m.group(1).rstrip()}\n\n{clean_sum}\n",
             tmpl_md,
             count=1,
             flags=re.DOTALL | re.IGNORECASE
         )
     
-    skills_pattern = r'(##\s*(?:Skills|Core Competencies(?: & Technical Skills)?)[\r\n]+)(.*?)(?=\n##\s|\Z)'
+    skills_pattern = r'(##\s*(?:Skills|Core Competencies(?: & Technical Skills)?)[ \t]*[\r\n]+)(.*?)(?=\r?\n##\s|\Z)'
     skills_match = re.search(skills_pattern, tmpl_md, flags=re.DOTALL | re.IGNORECASE)
     if skills_match:
         existing_skills_content = skills_match.group(2)
@@ -520,13 +529,14 @@ def tailor_template_markdown(tmpl_md, tailored_summary, tailored_bullets_skills,
             replacement = tailored_pipe_skills
         else:
             replacement = tailored_bullets_skills
-        tmpl_md = re.sub(
-            skills_pattern,
-            rf'\g<1>{replacement}\n\n',
-            tmpl_md,
-            count=1,
-            flags=re.DOTALL | re.IGNORECASE
-        )
+        if replacement:
+            tmpl_md = re.sub(
+                skills_pattern,
+                lambda m: f"{m.group(1).rstrip()}\n\n{replacement.strip()}\n",
+                tmpl_md,
+                count=1,
+                flags=re.DOTALL | re.IGNORECASE
+            )
     return tmpl_md
 
 def build_instant_tailored_resume(target_company="Target Company", target_title="Technology Leader", jd_text="", template_name=None, current_markdown=None):
@@ -543,19 +553,21 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
     # Detect domain
     is_cyber = (
         "threat" in jd_lower or "insider risk" in jd_lower or "cyber" in jd_lower or
-        "security" in title_lower or "risk" in title_lower or "governance" in jd_lower
+        "incident" in jd_lower or "detection" in jd_lower or "security" in jd_lower or
+        "security" in title_lower or "risk" in title_lower or "incident" in title_lower or
+        "detection" in title_lower or "governance" in jd_lower
     )
     is_network = (
         "network" in jd_lower and ("cisco" in jd_lower or "routing" in jd_lower or "firewall" in jd_lower or "lan" in jd_lower)
     )
 
-    # 1. Header Subtitle
+    # 1. Header Subtitle (used only by legacy master template)
     if "senior technology leader" in title_lower or "executive" in title_lower:
         subtitle = f"**{title}**"
     else:
         subtitle = f"**{title} | Senior Technology Leader**"
 
-    # 2. Executive Summary Formulation
+    # 2. Executive Summary Formulation for Legacy Master vs Custom CVS Template
     if is_cyber and not is_network:
         summary = (
             "Strategic, highly credentialed Cyber Security Executive and Technology Leader with over 25+ years of verified "
@@ -566,6 +578,17 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
             "regulatory assurance, enterprise vulnerability management (Qualys), Zero-Trust edge architectures, and third-party "
             "supplier incident response (200+ vendors). Adept at driving operational excellence, modeling risk discipline, and "
             "building high-performing technical teams aligned to corporate governance objectives."
+        )
+        cvs_summary = (
+            "Strategic Cyber Incident Response, Security Operations, and Cyber Security Leader with 25+ years directing enterprise "
+            "cybersecurity operations, incident triage, threat containment, root-cause remediation, and operational resilience across "
+            "Tier-1 financial services (Commonwealth Bank of Australia, State Street Bank, ING Direct) and large enterprises. "
+            "Career-long track record spanning hands-on engineering, technical architecture, and management roles, directing end-to-end "
+            "incident command across 24x7 SOC/CSIRT operations, IT infrastructure, Group Security platforms, and 200+ enterprise third-party suppliers.\n"
+            "Directed incident response across Group Security, Edge Security platforms, and 200+ enterprise suppliers at CBA, coordinating "
+            "cross-functional response teams and leading follow-the-sun escalations across regions. Proven incident commander skilled in "
+            "conducting thorough root-cause analyses, identifying systemic control gaps, translating complex technical threats into executive "
+            "risk priorities, and enforcing APRA CPS 234 and global banking cybersecurity standards."
         )
         pipe_skills = "Cyber Incident Response & Command | Threat Containment & Recovery | Root-Cause Analysis (RCA) | Control Gap Remediation | Threat Actor TTPs & ATT&CK | Executive Crisis Communication | Follow-the-Sun Operations | Security Telemetry (SIEM/EDR) | APRA CPS 234 Assurance | Service Management (ITIL/CAB)"
     elif is_network:
@@ -578,6 +601,15 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
             "firewalls. Cisco-certified engineer (CCNP, CCNA) and credentialed security manager (CISSP, CISM) adept at governing "
             "24x7 incident response, optimizing telecom carrier contracts, and ensuring compliance with APRA CPS 234/230 standards."
         )
+        cvs_summary = (
+            "Strategic Network Engineering, Infrastructure, and Cyber Security Leader with 25+ years directing enterprise network operations, "
+            "hybrid cloud architecture, incident triage, and operational resilience across Tier-1 financial services (Commonwealth Bank of Australia, "
+            "State Street Bank, ING Direct) and large enterprises. Career-long track record spanning hands-on engineering, technical architecture, "
+            "and management roles, directing multi-site LAN/WAN/wireless environments, perimeter security, Group Security platforms, and 200+ enterprise third-party suppliers.\n"
+            "Directed high-availability service delivery and major incident command across Group Security, Edge Security platforms, and 300+ enterprise sites "
+            "at CBA and Downer EDI, coordinating cross-functional response teams and leading follow-the-sun escalations. Proven technology leader skilled in "
+            "conducting thorough root-cause analyses, optimizing telecom and vendor ecosystems, and enforcing APRA CPS 234 and global cybersecurity standards."
+        )
         pipe_skills = "Enterprise Networking & Telecommunications | Cisco Routing & Switching | Fortinet FortiGate | Checkpoint Firewalls | SD-WAN & VPNs | 24x7 Network Incident Response | APRA CPS 234 Compliance | Telecom Carrier Management"
     else:
         summary = (
@@ -589,7 +621,18 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
             "and credentialed security executive (CISSP, CISM) with demonstrated expertise managing 24x7 cyber incident response, "
             "optimizing multi-vendor MSP and telecommunication contracts, and governing disaster recovery (DR/BCP) across mission-critical platforms."
         )
-        pipe_skills = "Enterprise Infrastructure & Cloud Architecture | Microsoft Azure & AWS | Hybrid Virtualization (VMware/Hyper-V) | Cyber Risk Governance | Disaster Recovery (BCP/DR) | Vendor & SLA Management | ITIL Service Delivery"
+        cvs_summary = (
+            "Strategic Cyber Incident Response, Security Operations, and Technology Leader with 25+ years directing enterprise "
+            "cybersecurity operations, cloud infrastructure, incident triage, threat containment, and operational resilience across "
+            "Tier-1 financial services (Commonwealth Bank of Australia, State Street Bank, ING Direct) and large enterprises. "
+            "Career-long track record spanning hands-on engineering, technical architecture, and management roles, directing end-to-end "
+            "incident command across 24x7 SOC/CSIRT operations, IT infrastructure, Group Security platforms, and 200+ enterprise third-party suppliers.\n"
+            "Directed incident response and service delivery across Group Security, Edge Security platforms, and 200+ enterprise suppliers at CBA, "
+            "coordinating cross-functional response teams and leading follow-the-sun escalations across regions. Proven technology leader skilled in "
+            "conducting thorough root-cause analyses, identifying systemic control gaps, translating complex technical threats into executive "
+            "risk priorities, and enforcing APRA CPS 234 and global banking cybersecurity standards."
+        )
+        pipe_skills = "Cyber Incident Response & Command | Threat Containment & Recovery | Root-Cause Analysis (RCA) | Control Gap Remediation | Threat Actor TTPs & ATT&CK | Executive Crisis Communication | Follow-the-Sun Operations | Security Telemetry (SIEM/EDR) | APRA CPS 234 Assurance | Service Management (ITIL/CAB)"
 
     # 3. Core Competencies & Technical Skills
     if is_cyber and not is_network:
@@ -611,32 +654,20 @@ def build_instant_tailored_resume(target_company="Target Company", target_title=
 * **Enterprise Networking & Edge Security:** Cisco Routing & Switching (Catalyst, ISRs), Fortinet FortiGate, Checkpoint Firewalls, SD-WAN, Site-to-Site IPsec VPNs, Enterprise Wireless LAN Controllers (WLC), Secure Web Gateways.
 * **Vendor & Commercial Management:** Managing Vendors & Technology Partners, SLA & Contract Negotiation, MSP Performance Auditing, RFP/RFI Evaluation, Technical Change Advisory Boards (TCAB/DCAB), ITIL v3/v4 Service Management."""
 
-    # 1. If current_markdown provided directly and contains markdown headings, tailor directly into it
-    if current_markdown and len(current_markdown.strip()) > 300 and ("## " in current_markdown):
-        return tailor_template_markdown(current_markdown, summary, competencies, pipe_skills, company, title)
-
-    # 2. Check if active template is a custom template (e.g. CVS or user uploaded format)
+    # 1. Check active template first (authoritative layout from Phase 1)
     try:
         from template_manager import get_active_template, extract_markdown_from_template
         active_tmpl = template_name or get_active_template()
         if active_tmpl and not active_tmpl.startswith("Resume of Raj Parikh.docx"):
             tmpl_md = extract_markdown_from_template(active_tmpl)
             if tmpl_md and len(tmpl_md) > 200:
-                return tailor_template_markdown(tmpl_md, summary, competencies, pipe_skills, company, title)
+                return tailor_template_markdown(tmpl_md, cvs_summary, competencies, pipe_skills, company, title)
     except Exception:
         pass
 
-    # 3. Check if output/tailored_resume.md on disk has a structured template
-    try:
-        from storage_config import get_output_dir
-        disk_path = os.path.join(get_output_dir(), "tailored_resume.md")
-        if os.path.exists(disk_path):
-            with open(disk_path, "r", encoding="utf-8") as f:
-                disk_md = f.read()
-            if disk_md and len(disk_md.strip()) > 300 and ("## " in disk_md):
-                return tailor_template_markdown(disk_md, summary, competencies, pipe_skills, company, title)
-    except Exception:
-        pass
+    # 2. If current_markdown provided directly and is a custom template format (e.g. has ## Employment History)
+    if current_markdown and len(current_markdown.strip()) > 300 and ("## Employment History" in current_markdown or "## Prior Roles" in current_markdown):
+        return tailor_template_markdown(current_markdown, cvs_summary, competencies, pipe_skills, company, title)
 
     prof = get_candidate_profile_data()
     cand_full = prof.get("full_name", "Senior Technology Leader")
@@ -896,30 +927,33 @@ def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", 
     # For resume: assemble directly into template blueprint
     if doc_type == "resume":
         tmpl_md = ""
-        # 1. Use current markdown in editor if valid
-        if current_markdown and len(current_markdown.strip()) > 300 and ("## " in current_markdown):
-            tmpl_md = current_markdown
-        else:
+        # 1. Always prioritize the active custom template on disk if selected
+        try:
+            from template_manager import get_active_template, extract_markdown_from_template
+            active_tmpl = template_name or get_active_template()
+            if active_tmpl and not active_tmpl.startswith("Resume of Raj Parikh.docx"):
+                extracted = extract_markdown_from_template(active_tmpl)
+                if extracted and len(extracted) > 200:
+                    tmpl_md = extracted
+        except Exception:
+            pass
+        # 2. Fall back to current_markdown in editor if valid and not polluted
+        if not tmpl_md and current_markdown and len(current_markdown.strip()) > 300 and ("## " in current_markdown):
+            if "169a Purchase Road" not in current_markdown[:500]:
+                tmpl_md = current_markdown
+        # 3. Fall back to output/tailored_resume.md if not polluted
+        if not tmpl_md:
             try:
-                from template_manager import get_active_template, extract_markdown_from_template
-                active_tmpl = template_name or get_active_template()
-                if active_tmpl and not active_tmpl.startswith("Resume of Raj Parikh.docx"):
-                    extracted = extract_markdown_from_template(active_tmpl)
-                    if extracted and len(extracted) > 200:
-                        tmpl_md = extracted
+                from storage_config import get_output_dir
+                out_resume_path = os.path.join(get_output_dir(), "tailored_resume.md")
+                if os.path.exists(out_resume_path):
+                    with open(out_resume_path, "r", encoding="utf-8") as f:
+                        disk_md = f.read()
+                    if disk_md and len(disk_md.strip()) > 300 and ("## " in disk_md):
+                        if "169a Purchase Road" not in disk_md[:500]:
+                            tmpl_md = disk_md
             except Exception:
                 pass
-            if not tmpl_md:
-                try:
-                    from storage_config import get_output_dir
-                    out_resume_path = os.path.join(get_output_dir(), "tailored_resume.md")
-                    if os.path.exists(out_resume_path):
-                        with open(out_resume_path, "r", encoding="utf-8") as f:
-                            disk_md = f.read()
-                        if disk_md and len(disk_md.strip()) > 300 and ("## " in disk_md):
-                            tmpl_md = disk_md
-                except Exception:
-                    pass
 
         instant_res = build_instant_tailored_resume(comp, title, jd_text, template_name=template_name, current_markdown=tmpl_md)
         if tmpl_md and len(tmpl_md) > 200:
@@ -929,9 +963,12 @@ def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", 
                 if not status.get("online"):
                     return {"success": True, "generated_text": instant_res}
 
-            # Otherwise, use LLM to enhance summary within template blueprint
-            summary_prompt = f"""### CANDIDATE VERIFIED KNOWLEDGE BASE & PROFILE TRUTH:
-{kb_summary}
+            # Extract the template's own baseline summary so LLM refines the active template's summary rather than reverting to old profile text
+            sum_match = re.search(r'(##\s*(?:Summary|Executive Summary)[ \t]*\r?\n+)([\s\S]*?)(?=(?:\r?\n##\s)|\Z)', instant_res, flags=re.IGNORECASE)
+            baseline_summary = sum_match.group(2).strip() if sum_match else ""
+
+            summary_prompt = f"""### ACTIVE TEMPLATE BASELINE SUMMARY (KEEP THIS EXACT 2-PARAGRAPH EXECUTIVE STYLE & FACTS):
+{baseline_summary}
 
 ### TARGET JOB DESCRIPTION:
 {jd_text[:1500] if jd_text else "Target Role Alignment"}
@@ -940,19 +977,21 @@ def generate_grounded_document(doc_type="resume", jd_text="", model="llama3.2", 
 - Target Company: {comp}
 - Target Position Title: {title}
 
-Write a punchy, executive-level 2-paragraph Tailored Summary for {title} at {comp} strictly grounded in candidate truth. Output ONLY the summary paragraphs, no headings:"""
+Refine the 2-paragraph Summary above so it is laser-focused on {title} at {comp} while preserving all verified metrics (25+ years, Tier-1 financial services Commonwealth Bank of Australia, State Street Bank, ING Direct, 24x7 SOC/CSIRT operations, Group Security platforms, 200+ enterprise third-party suppliers, APRA CPS 234).
+CRITICAL RULES:
+- Output ONLY the 2 summary paragraphs.
+- Do NOT include any '#' or '##' headings, contact details, addresses, or bullet points.
+- Do NOT invent any unverified facts or dates."""
             system_prompt = (
                 "You are an Elite Executive Career Strategist and Anti-Hallucination Guardrail.\n"
-                f"You are preparing an executive resume summary strictly for the role of '{title}' at '{comp}'.\n"
-                "STRICT GUARDRAILS: Do not invent any facts, dates, or metrics. Output ONLY the improved summary text."
+                f"You are refining an executive 2-paragraph resume summary strictly for the role of '{title}' at '{comp}'.\n"
+                "STRICT GUARDRAILS: Preserve the 2-paragraph structure and verified CBA/State Street/ING Direct facts. Output ONLY the 2 summary paragraphs with NO headings and NO preamble."
             )
             try:
-                llm_summary = query_llm(summary_prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.15, num_predict=400, ollama_url=ollama_url)
-                if llm_summary.startswith("```"):
-                    llm_summary = re.sub(r'^```[a-z]*\n|```$', '', llm_summary.strip())
-                if llm_summary and len(llm_summary.strip()) > 50:
-                    pipe_skills = "Cyber Incident Response & Command | Threat Containment & Recovery | Root-Cause Analysis (RCA) | Control Gap Remediation | Threat Actor TTPs & ATT&CK | Executive Crisis Communication | Follow-the-Sun Operations | Security Telemetry (SIEM/EDR) | APRA CPS 234 Assurance | Service Management (ITIL/CAB)"
-                    return {"success": True, "generated_text": tailor_template_markdown(tmpl_md, llm_summary.strip(), "", pipe_skills, comp, title)}
+                llm_summary = query_llm(summary_prompt, system_prompt=system_prompt, provider=provider, model=model, api_key=api_key, temperature=0.15, num_predict=450, ollama_url=ollama_url)
+                llm_summary = clean_llm_snippet(llm_summary, allow_headings=False)
+                if llm_summary and len(llm_summary.strip()) > 80 and "169a Purchase Road" not in llm_summary:
+                    return {"success": True, "generated_text": tailor_template_markdown(instant_res, llm_summary.strip(), "", "", comp, title)}
             except Exception:
                 pass
             return {"success": True, "generated_text": instant_res}
