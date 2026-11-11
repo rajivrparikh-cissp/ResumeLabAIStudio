@@ -70,10 +70,10 @@ Most generic AI resume tools send your unredacted personal information to propri
      └── Computes real-time ATS match scoring (0–100%) and gap matrix
      │
      ▼
-[Step 2: Tailored Resume Engine]
-     ├── Queries local Knowledge Base (skills inventory & experience matrix)
-     ├── Dynamically selects highest-impact verified achievements
-     └── Executes Anti-Hallucination & Truth Invariant audit
+[Step 2: Tailored Resume Engine (2-Phase Blueprint & Copilot)]
+     ├── Phase 1 (Define Template Blueprint): Select or upload custom Word (.docx) / Markdown (.md) layouts
+     ├── Phase 2 (Local LLM Grounding Copilot): Auto-Tailor, LLaMA Draft, Polish, & Hallucination Audit
+     └── Strictly preserves the active template's header, 2-paragraph summary style, and section order
      │
      ▼
 [Step 3: Executive Cover Letter Generation]
@@ -279,7 +279,7 @@ Resume_lab/
 ├── scripts/
 │   └── compile_docs.py         # python-docx compiler & visual layout sync engine
 ├── tests/
-│   ├── test_e2e_pipeline.py    # 6-Stage automated regression test suite
+│   ├── test_e2e_pipeline.py    # 7-Stage automated regression test suite (including custom template preservation)
 │   └── test_storage_config.py  # Storage path & directory unit test suite
 ├── docs/
 │   └── DEPLOYMENT_GUIDE.md     # In-depth multi-cloud & production guide

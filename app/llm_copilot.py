@@ -417,27 +417,32 @@ def build_instant_tailored_cover_letter(target_company="Target Company", target_
     # Paragraph 2: Core Technical & Operational Alignment
     p2_points = []
     if has_azure or has_247:
-        p2_points.append(
-            "Over 25 years of deep infrastructure lifecycle governance spanning public cloud (Microsoft Azure), hybrid virtualisation (VMware/Hyper-V), high-availability compute, and 24/7 disaster recovery architectures"
-        )
-    if has_mentor or has_trans:
-        p2_points.append(
-            "Proven leadership directing multidisciplinary technical teams, translating business goals and CTO directives into multi-year technology roadmaps, and supporting strategic acquisition and operational transformations"
-        )
+        p2_points.append((
+            "Enterprise Cloud & Infrastructure Lifecycle Governance",
+            "Over 25 years of hands-on and managerial experience across Microsoft 365, Azure, Entra ID, Intune, Windows endpoints, hybrid virtualisation (VMware/Hyper-V), high-availability compute, and 24/7 backup, disaster recovery (DR), and business continuity (BCP) architectures"
+        ))
+    if has_mentor or has_trans or "operations" in jd_lower:
+        p2_points.append((
+            "IT Operations, Escalation Support & Service Improvement",
+            "Proven leadership directing multidisciplinary technical teams, managing incidents and changes (ITIL/CAB), resolving complex L3/L4 escalations, and translating strategic objectives into reliable day-to-day technology operations"
+        ))
     if has_security:
-        p2_points.append(
-            "Rigorous cyber resilience and control assurance grounded in Tier-1 banking standards (Commonwealth Bank of Australia), APRA CPS 230/234 regulatory compliance, and Zero-Trust architecture"
-        )
+        p2_points.append((
+            "Cyber Resilience, ISO 27001 ISMS & Control Assurance",
+            "Rigorous security operations and risk governance grounded in Tier-1 banking standards (Commonwealth Bank of Australia), ISO 27001 ISMS alignment, APRA CPS 230/234 regulatory compliance, identity/endpoint protection, vulnerability patching, and Zero-Trust architecture"
+        ))
     if has_vendor:
-        p2_points.append(
-            "Commercial and vendor stewardship across multi-supplier ecosystems, renegotiating contracts, enforcing stringent SLAs, and optimizing multi-million-dollar technology investments"
-        )
+        p2_points.append((
+            "Commercial & Technology Vendor Stewardship",
+            "End-to-end governance across multi-supplier and MSP ecosystems (200+ enterprise suppliers), assessing vendor and cloud risks, enforcing stringent SLAs, and optimizing multi-million-dollar technology investments"
+        ))
     if has_network and not has_vendor:
-        p2_points.append(
+        p2_points.append((
+            "Enterprise Network & Perimeter Security Architecture",
             "Comprehensive enterprise network architecture, edge security, routing, switching, and secure hybrid-cloud connectivity across geographically dispersed sites"
-        )
+        ))
 
-    bullets_text = "\n".join([f"- **{pt.split(' spanning ')[0] if ' spanning ' in pt else pt.split(',')[0]}:** {pt}." for pt in p2_points])
+    bullets_text = "\n".join([f"- **{hdr}:** {body}." for hdr, body in p2_points])
     p2 = (
         f"My background combines broad strategic thinking with the practical technical grounding needed to understand the environment "
         f"and support delivery teams whenever required. Key areas where my experience directly advances {target_company}'s objectives include:\n\n"
